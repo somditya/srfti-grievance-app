@@ -1,0 +1,65 @@
+# Docker Compose file for SRFTI Grievance Redressal Portal
+version: '3.8'
+
+services:
+  # 1. Database Service (MySQL 8.0)
+  db:
+    image: mysql:8.0
+    container_name: srfti_mysql_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: srfti_password
+      MYSQL_DATABASE: srfti_grievance
+    ports:
+      - "3306:3306"
+    volumes:
+      # Automatically initialize database using the schema.sql script on boot
+      - ./server/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      # Persist data across container cycles
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p" ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # 2. Backend API Service (Node + Express)
+  backend:
+    build: ./server
+    container_name: srfti_backend_server
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - DB_HOST=db
+      - DB_USER=root
+      - DB_PASSWORD=srfti_password
+      - DB_NAME=srfti_grievance
+      - JWT_SECRET=srfti_super_jwt_secret_key
+    volumes:
+      - ./server/uploads:/app/uploads
+      - ./server:/app
+      - /app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # 3. Frontend Client Service (Vite + React)
+  frontend:
+    build: ./client
+    container_name: srfti_frontend_client
+    restart: always
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:5000/api
+      - CHOKIDAR_USEPOLLING=true
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
