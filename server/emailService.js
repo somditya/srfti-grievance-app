@@ -1,6 +1,10 @@
 // Email Notification Service — Google Workspace SMTP (agent@ailab.srfti.ac.in)
+// All transactional emails are sent via Google Workspace SMTP from agent@ailab.srfti.ac.in
 
 const nodemailer = require('nodemailer');
+
+const FROM_EMAIL = process.env.SMTP_USER || 'agent@ailab.srfti.ac.in';
+const FROM_NAME = 'SRFTI Grievance Portal';
 
 let transporter = null;
 
@@ -11,23 +15,38 @@ function getTransporter() {
       port: parseInt(process.env.SMTP_PORT) || 587,
       secure: false,
       auth: {
-        user: process.env.SMTP_USER,
+        user: FROM_EMAIL,
         pass: process.env.SMTP_PASS,
+      },
+      tls: {
+        rejectUnauthorized: true,
       },
     });
   }
   return transporter;
 }
 
+async function verifySmtpConnection() {
+  try {
+    await getTransporter().verify();
+    console.log('[Email] Google Workspace SMTP connection verified — ready to send.');
+    return true;
+  } catch (err) {
+    console.error('[Email] SMTP connection failed:', err.message);
+    console.error('[Email] Emails will be skipped until SMTP is reconfigured.');
+    return false;
+  }
+}
+
 async function sendEmail({ to, subject, html, text }) {
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+  if (!FROM_EMAIL || !process.env.SMTP_PASS) {
     console.warn('[Email] SMTP credentials not configured. Skipping email send.');
     return { skipped: true };
   }
 
   try {
     const info = await getTransporter().sendMail({
-      from: `"SRFTI Grievance Portal" <${process.env.SMTP_USER}>`,
+      from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
       to,
       subject,
       html,
@@ -44,6 +63,18 @@ async function sendEmail({ to, subject, html, text }) {
 function grievanceLink(grievanceId) {
   const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   return `${baseUrl}/#/dashboard`;
+}
+
+// Generate a reusable email footer
+function emailFooter() {
+  return `
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 1.5rem 0;" />
+    <p style="color: #6b7280; font-size: 0.8rem;">
+      This is an automated notification from the SRFTI Grievance Redressal Portal.<br />
+      Sender: agent@ailab.srfti.ac.in | Satyajit Ray Film & Television Institute<br />
+      Do not reply directly to this email. Log in to the portal for any responses.
+    </p>
+  `;
 }
 
 async function notifyGrievanceFiled(grievance, complainant, nodalOfficer) {
@@ -64,7 +95,7 @@ async function notifyGrievanceFiled(grievance, complainant, nodalOfficer) {
           <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Timeline</td><td style="padding: 8px; border: 1px solid #ddd;">${grievance.timeline_days} days</td></tr>
         </table>
         <p>You will receive email updates as your case progresses.</p>
-        <p style="color: #666; font-size: 0.85rem;">SRFTI Grievance Redressal Portal</p>
+        ${emailFooter()}
       </div>
     `,
     text: `Grievance #${grievance.id} "${grievance.title}" filed. Nodal Officer: ${nodalOfficer ? nodalOfficer.name : 'Pending'}. Timeline: ${grievance.timeline_days} days.`,
@@ -86,7 +117,7 @@ async function notifyGrievanceFiled(grievance, complainant, nodalOfficer) {
             <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Complainant</td><td style="padding: 8px; border: 1px solid #ddd;">${complainant.name}</td></tr>
             <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Timeline</td><td style="padding: 8px; border: 1px solid #ddd;">${grievance.timeline_days} days</td></tr>
           </table>
-          <p style="color: #666; font-size: 0.85rem;">SRFTI Grievance Redressal Portal</p>
+          ${emailFooter()}
         </div>
       `,
       text: `New Grievance #${grievance.id} "${grievance.title}" from ${complainant.name}. Timeline: ${grievance.timeline_days} days.`,
@@ -109,7 +140,7 @@ async function notifyInvestigationStarted(grievance, complainant, nodalOfficer) 
           <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Nodal Officer</td><td style="padding: 8px; border: 1px solid #ddd;">${nodalOfficer ? nodalOfficer.name : 'Nodal Officer'}</td></tr>
         </table>
         <p><em>Remarks:</em> "${grievance.lastRemarks || 'Investigation has been initiated.'}"</p>
-        <p style="color: #666; font-size: 0.85rem;">SRFTI Grievance Redressal Portal</p>
+        ${emailFooter()}
       </div>
     `,
     text: `Grievance #${grievance.id} investigation started by ${nodalOfficer ? nodalOfficer.name : 'Nodal Officer'}.`,
@@ -133,7 +164,7 @@ async function notifyIntermediateReply(grievance, complainant, nodalOfficer, rem
         <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 1rem; margin: 1rem 0;">
           <p style="margin: 0; font-style: italic;">"${remarks}"</p>
         </div>
-        <p style="color: #666; font-size: 0.85rem;">SRFTI Grievance Redressal Portal</p>
+        ${emailFooter()}
       </div>
     `,
     text: `Grievance #${grievance.id} update from ${nodalOfficer ? nodalOfficer.name : 'Nodal Officer'}: "${remarks}"`,
@@ -158,7 +189,7 @@ async function notifyResolutionSubmitted(grievance, complainant, nodalOfficer, r
           <p style="margin: 0; font-style: italic;">"${remarks}"</p>
         </div>
         <p><strong>Please log in to the portal to accept or appeal the resolution.</strong></p>
-        <p style="color: #666; font-size: 0.85rem;">SRFTI Grievance Redressal Portal</p>
+        ${emailFooter()}
       </div>
     `,
     text: `Grievance #${grievance.id} resolution submitted by ${nodalOfficer ? nodalOfficer.name : 'Nodal Officer'}. Please log in to accept or appeal. Remarks: "${remarks}"`,
@@ -183,7 +214,7 @@ async function notifyAppealFiled(grievance, complainant, appellateOfficer, remar
             <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Appeal Reason</td><td style="padding: 8px; border: 1px solid #ddd;">${remarks || 'Resolution rejected by complainant'}</td></tr>
           </table>
           <p><strong>Please log in to convene a hearing.</strong></p>
-          <p style="color: #666; font-size: 0.85rem;">SRFTI Grievance Redressal Portal</p>
+          ${emailFooter()}
         </div>
       `,
       text: `Appeal filed for Grievance #${grievance.id} by ${complainant.name}. Reason: ${remarks || 'Resolution rejected'}.`,
@@ -204,7 +235,7 @@ async function notifyAppealFiled(grievance, complainant, appellateOfficer, remar
           <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Subject</td><td style="padding: 8px; border: 1px solid #ddd;">${grievance.title}</td></tr>
           <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Appellate Authority</td><td style="padding: 8px; border: 1px solid #ddd;">${appellateOfficer ? appellateOfficer.name : 'Pending'}</td></tr>
         </table>
-        <p style="color: #666; font-size: 0.85rem;">SRFTI Grievance Redressal Portal</p>
+        ${emailFooter()}
       </div>
     `,
     text: `Appeal filed for Grievance #${grievance.id}. Escalated to ${appellateOfficer ? appellateOfficer.name : 'Appellate Authority'}.`,
@@ -228,7 +259,7 @@ async function notifyFinalRuling(grievance, complainant, appellateOfficer, remar
         <div style="background: #eff6ff; border-left: 4px solid #1e40af; padding: 1rem; margin: 1rem 0;">
           <p style="margin: 0; font-style: italic;">"${remarks}"</p>
         </div>
-        <p style="color: #666; font-size: 0.85rem;">SRFTI Grievance Redressal Portal</p>
+        ${emailFooter()}
       </div>
     `,
     text: `Final ruling for Grievance #${grievance.id}: "${remarks}"`,
@@ -249,7 +280,7 @@ async function notifyResolutionAccepted(grievance, complainant, nodalOfficer) {
           <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Case ID</td><td style="padding: 8px; border: 1px solid #ddd;">#${grievance.id}</td></tr>
           <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Subject</td><td style="padding: 8px; border: 1px solid #ddd;">${grievance.title}</td></tr>
         </table>
-        <p style="color: #666; font-size: 0.85rem;">SRFTI Grievance Redressal Portal</p>
+        ${emailFooter()}
       </div>
     `,
     text: `Grievance #${grievance.id} resolution accepted. Case closed.`,
@@ -265,7 +296,7 @@ async function notifyResolutionAccepted(grievance, complainant, nodalOfficer) {
           <h2 style="color: #16a34a;">Resolution Accepted</h2>
           <p>Dear <strong>${nodalOfficer.name}</strong>,</p>
           <p>The complainant has accepted your resolution for Grievance #${grievance.id}. Case closed.</p>
-          <p style="color: #666; font-size: 0.85rem;">SRFTI Grievance Redressal Portal</p>
+          ${emailFooter()}
         </div>
       `,
       text: `Grievance #${grievance.id} resolution accepted by ${complainant.name}. Case closed.`,
@@ -294,7 +325,7 @@ async function notifySlaWarning(grievance, nodalOfficer, complainantName, daysRe
           <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Status</td><td style="padding: 8px; border: 1px solid #ddd; color: ${color}; font-weight: bold;">${isOverdue ? 'Breached by ' + Math.abs(daysRemaining) + ' days' : daysRemaining + ' days remaining'}</td></tr>
         </table>
         <p><strong>Please take immediate action.</strong></p>
-        <p style="color: #666; font-size: 0.85rem;">SRFTI Grievance Redressal Portal</p>
+        ${emailFooter()}
       </div>
     `,
     text: 'SLA ' + (isOverdue ? 'BREACHED' : 'WARNING') + ': Grievance #' + grievance.id + ' "' + grievance.title + '". ' + (isOverdue ? 'Overdue by ' + Math.abs(daysRemaining) + ' days' : daysRemaining + ' days remaining') + '.',
@@ -303,6 +334,7 @@ async function notifySlaWarning(grievance, nodalOfficer, complainantName, daysRe
 
 module.exports = {
   sendEmail,
+  verifySmtpConnection,
   notifyGrievanceFiled,
   notifyInvestigationStarted,
   notifyIntermediateReply,

@@ -1,5 +1,6 @@
 // Express Server with MySQL DB connection and SRFTI business logic
 
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
@@ -151,6 +152,26 @@ app.post('/api/auth/register', async (req, res) => {
       [name, email, hash, 'complainant', complainant_type, phone || null]
     );
     
+    // Send registration confirmation email (non-blocking)
+    email.sendEmail({
+      to: email,
+      subject: 'Welcome to SRFTI Grievance Portal — Registration Successful',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #1e40af;">Registration Confirmed</h2>
+          <p>Dear <strong>${name}</strong>,</p>
+          <p>Your account has been successfully created on the SRFTI Grievance Redressal Portal.</p>
+          <table style="border-collapse: collapse; width: 100%; margin: 1rem 0;">
+            <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Email</td><td style="padding: 8px; border: 1px solid #ddd;">${email}</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Sector</td><td style="padding: 8px; border: 1px solid #ddd;">${complainant_type.charAt(0).toUpperCase() + complainant_type.slice(1)}</td></tr>
+          </table>
+          <p>You can now log in to file and track grievances. You will receive email notifications for all updates.</p>
+          <p style="color: #666; font-size: 0.85rem;">SRFTI Grievance Redressal Portal<br/>agent@ailab.srfti.ac.in</p>
+        </div>
+      `,
+      text: `Welcome to SRFTI Grievance Portal. Your registration as ${complainant_type} is confirmed. You will receive email updates for all grievance activities.`,
+    }).catch(err => console.error('[Email] Registration confirmation failed:', err.message));
+
     res.status(201).json({ message: 'Registration successful. Please log in.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -730,9 +751,13 @@ async function startServer() {
     console.error('[Seeding] Auto-seeding encountered an error:', err.message);
   }
   
-  // 3. Start listener
+  // 3. Verify SMTP connection
+  email.verifySmtpConnection();
+
+  // 4. Start listener
   app.listen(PORT, () => {
     console.log(`[Express] Server running on port ${PORT}`);
+    console.log(`[Email] Transactional emails configured via agent@ailab.srfti.ac.in (Google Workspace SMTP)`);
   });
 }
 
