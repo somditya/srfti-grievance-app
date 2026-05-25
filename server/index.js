@@ -65,11 +65,6 @@ async function sendNotification({ action, grievance, remarks, actingUser }) {
       nodalOfficer = nodals[0];
     }
 
-    // Get appellate officer details
-    let appellateOfficer = null;
-    const appellates = await db.query('SELECT ao.name, ao.email FROM appellate_officers ao WHERE ao.complainant_type = ?', [grievance.complainant_type]);
-    if (appellates.length > 0) appellateOfficer = appellates[0];
-
     const grievanceData = { ...grievance, lastRemarks: remarks };
 
     switch (action) {
@@ -85,12 +80,18 @@ async function sendNotification({ action, grievance, remarks, actingUser }) {
       case 'resolve':
         await email.notifyResolutionSubmitted(grievanceData, complainant, nodalOfficer, remarks);
         break;
-      case 'appeal':
+      case 'appeal': {
+        const appellates = await db.query('SELECT ao.name, ao.email FROM appellate_officers ao WHERE ao.complainant_type = ?', [grievance.complainant_type]);
+        const appellateOfficer = appellates.length > 0 ? appellates[0] : null;
         await email.notifyAppealFiled(grievanceData, complainant, appellateOfficer, remarks);
         break;
-      case 'finalize':
+      }
+      case 'finalize': {
+        const appellates = await db.query('SELECT ao.name, ao.email FROM appellate_officers ao WHERE ao.complainant_type = ?', [grievance.complainant_type]);
+        const appellateOfficer = appellates.length > 0 ? appellates[0] : null;
         await email.notifyFinalRuling(grievanceData, complainant, appellateOfficer, remarks);
         break;
+      }
       case 'resolve_accepted':
         await email.notifyResolutionAccepted(grievanceData, complainant, nodalOfficer);
         break;
@@ -255,7 +256,12 @@ app.post('/api/grievances', authenticateToken, upload.single('attachment'), asyn
       [user.id, category, title, description, attachmentPath, 'pending', nodalId, timeline]
     );
     const grievanceId = result.insertId;
-    
+
+    // 3b. Generate formatted case ID: SRFTI/GRV/YYYY/XXXXX
+    const year = new Date().getFullYear();
+    const caseId = `SRFTI/GRV/${year}/${String(grievanceId).padStart(5, '0')}`;
+    await db.query('UPDATE grievances SET case_id = ? WHERE id = ?', [caseId, grievanceId]);
+
     // 4. Log in Audit Trail
     await db.query(
       'INSERT INTO grievance_history (grievance_id, action_by, action_type, remarks) VALUES (?, ?, ?, ?)',
@@ -265,7 +271,9 @@ app.post('/api/grievances', authenticateToken, upload.single('attachment'), asyn
     // Send email notification (non-blocking)
     const newGrievance = {
       id: grievanceId,
+      case_id: caseId,
       complainant_id: user.id,
+      complainant_type: user.complainant_type,
       category,
       title,
       description,
@@ -688,7 +696,27 @@ app.get('/api/reminders/nodal', authenticateToken, async (req, res) => {
 async function startServer() {
   // 1. Establish database connection
   await db.connectWithRetry();
-  
+
+  // 1b. Migrate: add case_id column if missing
+  try {
+    const cols = await db.query("SHOW COLUMNS FROM grievances LIKE 'case_id'");
+    if (cols.length === 0) {
+      await db.query('ALTER TABLE grievances ADD COLUMN case_id VARCHAR(20) UNIQUE NULL AFTER id');
+      console.log('[Migration] Added case_id column to grievances table.');
+    }
+    // Backfill any rows where case_id is NULL
+    const rows = await db.query('SELECT id, YEAR(created_at) as yr FROM grievances WHERE case_id IS NULL ORDER BY id');
+    for (const row of rows) {
+      const caseId = `SRFTI/GRV/${row.yr}/${String(row.id).padStart(5, '0')}`;
+      await db.query('UPDATE grievances SET case_id = ? WHERE id = ?', [caseId, row.id]);
+    }
+    if (rows.length > 0) {
+      console.log(`[Migration] Backfilled case_id for ${rows.length} existing grievances.`);
+    }
+  } catch (err) {
+    console.error('[Migration] case_id migration failed:', err.message);
+  }
+
   // 2. Auto-seed core roles if table is empty
   try {
     const userCountResult = await db.query('SELECT COUNT(*) as count FROM users');

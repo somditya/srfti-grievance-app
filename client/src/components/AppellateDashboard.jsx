@@ -183,7 +183,7 @@ function AppellateDashboard({ t, currentUser, authToken }) {
               <tbody>
                 {grievances.map((g) => (
                   <tr key={g.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <td style={{ padding: '0.75rem', fontWeight: 700 }}>#{g.id}</td>
+                    <td style={{ padding: '0.75rem', fontWeight: 700 }}>{g.case_id}</td>
                     <td style={{ padding: '0.75rem', fontWeight: 600 }}>{g.title}</td>
                     <td style={{ padding: '0.75rem' }}>{g.category}</td>
                     <td style={{ padding: '0.75rem' }}>{g.complainant_name || 'Rahul Banerjee'}</td>
@@ -215,7 +215,7 @@ function AppellateDashboard({ t, currentUser, authToken }) {
             
             <div className="card-header">
               <h3 id="modal-title" style={{ fontSize: '1.25rem' }}>
-                Tribunal Audit and Ruling Board: #{selectedGrievance.id}
+                Tribunal Audit and Ruling Board: {selectedGrievance.case_id}
               </h3>
               <button 
                 className="btn btn-secondary" 
@@ -240,7 +240,7 @@ function AppellateDashboard({ t, currentUser, authToken }) {
                 {selectedGrievance.attachment_path && (
                   <div style={{ margin: '1rem 0' }}>
                     <strong>Evidentiary Reference Uploads:</strong>{' '}
-                    <a href={`http://localhost:5000${selectedGrievance.attachment_path}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', fontWeight: 600, textDecoration: 'underline' }}>
+                    <a href={`${selectedGrievance.attachment_path}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', fontWeight: 600, textDecoration: 'underline' }}>
                       Open File Attachment
                     </a>
                   </div>
@@ -249,7 +249,7 @@ function AppellateDashboard({ t, currentUser, authToken }) {
                 {selectedGrievance.resolution_report_path && (
                   <div style={{ margin: '1rem 0', padding: '0.75rem', border: '2px solid var(--status-resolved-text)', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(22, 163, 74, 0.05)' }}>
                     <strong style={{ color: 'var(--status-resolved-text)' }}>📋 Nodal Officer Resolution Report:</strong>{' '}
-                    <a href={`http://localhost:5000${selectedGrievance.resolution_report_path}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', fontWeight: 600, textDecoration: 'underline' }}>
+                    <a href={`${selectedGrievance.resolution_report_path}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', fontWeight: 600, textDecoration: 'underline' }}>
                       View Resolution Report
                     </a>
                   </div>
@@ -260,7 +260,7 @@ function AppellateDashboard({ t, currentUser, authToken }) {
               <div className="card" style={{ padding: '1rem', background: 'var(--bg-card)' }}>
                 <h5 style={{ fontWeight: 700, marginBottom: '0.75rem' }}>Docket Overview</h5>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.85rem' }}>
-                  <div>Case ID: <strong>#{selectedGrievance.id}</strong></div>
+                  <div>Case ID: <strong>{selectedGrievance.case_id}</strong></div>
                   <div>Assigned Nodal: <strong>{selectedGrievance.nodal_name || 'Nodal Officer'}</strong></div>
                   <div>Original Limit: <strong>{selectedGrievance.timeline_days} Days</strong></div>
                   <div>SLA Timer status: <span className="status-badge escalated">Timeline Breached</span></div>

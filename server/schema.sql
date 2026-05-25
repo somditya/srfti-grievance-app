@@ -40,6 +40,7 @@ CREATE TABLE system_settings (
 -- 4. Grievances Table
 CREATE TABLE grievances (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  case_id VARCHAR(20) NOT NULL UNIQUE,
   complainant_id INT NOT NULL,
   category VARCHAR(100) NOT NULL, -- Academic, Facilities, Admin, Harassment, etc.
   title VARCHAR(255) NOT NULL,

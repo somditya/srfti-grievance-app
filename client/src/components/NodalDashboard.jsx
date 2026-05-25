@@ -318,7 +318,7 @@ function NodalDashboard({ t, currentUser, authToken }) {
                       
                       return (
                         <tr key={g.id} style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: !isClosed && stats.isOverdue ? 'rgba(239, 68, 68, 0.03)' : 'inherit' }}>
-                          <td style={{ padding: '0.75rem', fontWeight: 700 }}>#{g.id}</td>
+                          <td style={{ padding: '0.75rem', fontWeight: 700 }}>{g.case_id}</td>
                           <td style={{ padding: '0.75rem', fontWeight: 600 }}>{g.title}</td>
                           <td style={{ padding: '0.75rem' }}>{g.complainant_name || 'Rahul Banerjee'}</td>
                           <td style={{ padding: '0.75rem' }}>{new Date(g.created_at).toLocaleDateString()}</td>
@@ -402,7 +402,7 @@ function NodalDashboard({ t, currentUser, authToken }) {
             
             <div className="card-header">
               <h3 id="modal-title" style={{ fontSize: '1.25rem' }}>
-                {t('modalActionTitle')}: #{selectedGrievance.id}
+                {t('modalActionTitle')}: {selectedGrievance.case_id}
               </h3>
               <button 
                 className="btn btn-secondary" 
@@ -443,7 +443,7 @@ function NodalDashboard({ t, currentUser, authToken }) {
                 {selectedGrievance.attachment_path && (
                   <div style={{ margin: '1rem 0' }}>
                     <strong>Reference Attachment:</strong>{' '}
-                    <a href={`http://localhost:5000${selectedGrievance.attachment_path}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', fontWeight: 600, textDecoration: 'underline' }}>
+                    <a href={`${selectedGrievance.attachment_path}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', fontWeight: 600, textDecoration: 'underline' }}>
                       Open Reference Document Link
                     </a>
                   </div>
@@ -452,7 +452,7 @@ function NodalDashboard({ t, currentUser, authToken }) {
                 {selectedGrievance.resolution_report_path && (
                   <div style={{ margin: '1rem 0', padding: '0.75rem', border: '2px solid var(--status-resolved-text)', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(22, 163, 74, 0.05)' }}>
                     <strong style={{ color: 'var(--status-resolved-text)' }}>📋 Resolution Report:</strong>{' '}
-                    <a href={`http://localhost:5000${selectedGrievance.resolution_report_path}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', fontWeight: 600, textDecoration: 'underline' }}>
+                    <a href={`${selectedGrievance.resolution_report_path}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', fontWeight: 600, textDecoration: 'underline' }}>
                       View Submitted Resolution Report
                     </a>
                   </div>

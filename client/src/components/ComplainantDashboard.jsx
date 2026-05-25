@@ -396,7 +396,7 @@ function ComplainantDashboard({ t, currentUser, authToken, systemSettings, appel
                       
                       return (
                         <tr key={g.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                          <td style={{ padding: '0.75rem', fontWeight: 700 }}>#{g.id}</td>
+                          <td style={{ padding: '0.75rem', fontWeight: 700 }}>{g.case_id}</td>
                           <td style={{ padding: '0.75rem', fontWeight: 600 }}>{g.title}</td>
                           <td style={{ padding: '0.75rem' }}><span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>{g.category}</span></td>
                           <td style={{ padding: '0.75rem' }}>{new Date(g.created_at).toLocaleDateString()}</td>
@@ -443,7 +443,7 @@ function ComplainantDashboard({ t, currentUser, authToken, systemSettings, appel
             
             <div className="card-header">
               <h3 id="modal-title" style={{ fontSize: '1.25rem' }}>
-                Grievance Tracking: #{selectedGrievance.id}
+                Grievance Tracking: {selectedGrievance.case_id}
               </h3>
               <button 
                 className="btn btn-secondary" 
@@ -468,7 +468,7 @@ function ComplainantDashboard({ t, currentUser, authToken, systemSettings, appel
                 {selectedGrievance.attachment_path && (
                   <div style={{ margin: '1rem 0' }}>
                     <strong>Reference Attachment:</strong>{' '}
-                    <a href={`http://localhost:5000${selectedGrievance.attachment_path}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', fontWeight: 600, textDecoration: 'underline' }}>
+                    <a href={`${selectedGrievance.attachment_path}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', fontWeight: 600, textDecoration: 'underline' }}>
                       View Uploaded Reference Document
                     </a>
                   </div>
@@ -477,7 +477,7 @@ function ComplainantDashboard({ t, currentUser, authToken, systemSettings, appel
                 {selectedGrievance.resolution_report_path && (
                   <div style={{ margin: '1rem 0', padding: '0.75rem', border: '2px solid var(--status-resolved-text)', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(22, 163, 74, 0.05)' }}>
                     <strong style={{ color: 'var(--status-resolved-text)' }}>📋 Nodal Officer Resolution Report:</strong>{' '}
-                    <a href={`http://localhost:5000${selectedGrievance.resolution_report_path}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', fontWeight: 600, textDecoration: 'underline' }}>
+                    <a href={`${selectedGrievance.resolution_report_path}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', fontWeight: 600, textDecoration: 'underline' }}>
                       View Resolution Report
                     </a>
                   </div>

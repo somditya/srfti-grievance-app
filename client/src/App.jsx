@@ -10,7 +10,7 @@ import AppellateDashboard from './components/AppellateDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import { translations } from './translations';
 
-export const API_URL = 'http://localhost:5000/api';
+export const API_URL = '/api';
 
 function App() {
   // Global States

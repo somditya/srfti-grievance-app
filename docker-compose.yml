@@ -30,6 +30,8 @@ services:
     restart: always
     ports:
       - "5000:5000"
+    env_file:
+      - .env
     environment:
       - PORT=5000
       - DB_HOST=db
@@ -37,14 +39,8 @@ services:
       - DB_PASSWORD=srfti_password
       - DB_NAME=srfti_grievance
       - JWT_SECRET=srfti_super_jwt_secret_key
-      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
-      - SMTP_PORT=${SMTP_PORT:-587}
-      - SMTP_USER=${SMTP_USER:-agent@ailab.srfti.ac.in}
-      - SMTP_PASS=${SMTP_PASS}
-      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
     volumes:
       - ./server/uploads:/app/uploads
-      - ./server:/app
       - /app/node_modules
     depends_on:
       db:
