@@ -273,7 +273,7 @@ async function notifyResolutionAccepted(grievance, complainant, nodalOfficer) {
   }
 }
 
-async function notifySlaWarning(grievance, nodalOfficer, daysRemaining, isOverdue) {
+async function notifySlaWarning(grievance, nodalOfficer, complainantName, daysRemaining, isOverdue) {
   if (!nodalOfficer || !nodalOfficer.email) return;
 
   const urgency = isOverdue ? 'OVERDUE' : 'URGENT';
@@ -290,14 +290,14 @@ async function notifySlaWarning(grievance, nodalOfficer, daysRemaining, isOverdu
         <table style="border-collapse: collapse; width: 100%; margin: 1rem 0;">
           <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Case ID</td><td style="padding: 8px; border: 1px solid #ddd;">#${grievance.id}</td></tr>
           <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Subject</td><td style="padding: 8px; border: 1px solid #ddd;">${grievance.title}</td></tr>
-          <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Complainant</td><td style="padding: 8px; border: 1px solid #ddd;">${grievant.complainant_name || 'Complainant'}</td></tr>
-          <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Status</td><td style="padding: 8px; border: 1px solid #ddd; color: ${color}; font-weight: bold;">${isOverdue ? `Breached by ${Math.abs(daysRemaining)} days` : `${daysRemaining} days remaining`}</td></tr>
+          <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Complainant</td><td style="padding: 8px; border: 1px solid #ddd;">${complainantName || 'Complainant'}</td></tr>
+          <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Status</td><td style="padding: 8px; border: 1px solid #ddd; color: ${color}; font-weight: bold;">${isOverdue ? 'Breached by ' + Math.abs(daysRemaining) + ' days' : daysRemaining + ' days remaining'}</td></tr>
         </table>
         <p><strong>Please take immediate action.</strong></p>
         <p style="color: #666; font-size: 0.85rem;">SRFTI Grievance Redressal Portal</p>
       </div>
     `,
-    text: `SLA ${isOverdue ? 'BREACHED' : 'WARNING'}: Grievance #${grievance.id} "${grievance.title}". ${isOverdue ? `Overdue by ${Math.abs(daysRemaining)} days` : `${daysRemaining} days remaining`}.`,
+    text: 'SLA ' + (isOverdue ? 'BREACHED' : 'WARNING') + ': Grievance #' + grievance.id + ' "' + grievance.title + '". ' + (isOverdue ? 'Overdue by ' + Math.abs(daysRemaining) + ' days' : daysRemaining + ' days remaining') + '.',
   });
 }
 

@@ -49,6 +49,56 @@ function authenticateToken(req, res, next) {
   });
 }
 
+// --- EMAIL HELPER ---
+// Fetches related users and fires email notifications (non-blocking)
+async function sendNotification({ action, grievance, remarks, actingUser }) {
+  try {
+    // Get complainant details
+    const complainants = await db.query('SELECT id, name, email FROM users WHERE id = ?', [grievance.complainant_id]);
+    const complainant = complainants[0];
+
+    // Get nodal officer details
+    let nodalOfficer = null;
+    if (grievance.nodal_officer_id) {
+      const nodals = await db.query('SELECT id, name, email FROM users WHERE id = ?', [grievance.nodal_officer_id]);
+      nodalOfficer = nodals[0];
+    }
+
+    // Get appellate officer details
+    let appellateOfficer = null;
+    const appellates = await db.query('SELECT ao.name, ao.email FROM appellate_officers ao WHERE ao.complainant_type = ?', [grievance.complainant_type]);
+    if (appellates.length > 0) appellateOfficer = appellates[0];
+
+    const grievanceData = { ...grievance, lastRemarks: remarks };
+
+    switch (action) {
+      case 'submitted':
+        await email.notifyGrievanceFiled(grievanceData, complainant, nodalOfficer);
+        break;
+      case 'in_progress':
+        await email.notifyInvestigationStarted(grievanceData, complainant, nodalOfficer);
+        break;
+      case 'intermediate_reply':
+        await email.notifyIntermediateReply(grievanceData, complainant, nodalOfficer, remarks);
+        break;
+      case 'resolve':
+        await email.notifyResolutionSubmitted(grievanceData, complainant, nodalOfficer, remarks);
+        break;
+      case 'appeal':
+        await email.notifyAppealFiled(grievanceData, complainant, appellateOfficer, remarks);
+        break;
+      case 'finalize':
+        await email.notifyFinalRuling(grievanceData, complainant, appellateOfficer, remarks);
+        break;
+      case 'resolve_accepted':
+        await email.notifyResolutionAccepted(grievanceData, complainant, nodalOfficer);
+        break;
+    }
+  } catch (err) {
+    console.error('[Email Notification Error]', err.message);
+  }
+}
+
 // --- PUBLIC ROUTERS ---
 app.get('/api/settings', async (req, res) => {
   try {
@@ -191,6 +241,25 @@ app.post('/api/grievances', authenticateToken, upload.single('attachment'), asyn
       [grievanceId, user.id, 'submitted', 'Grievance registered in system and routed to respective Nodal Officer.']
     );
     
+    // Send email notification (non-blocking)
+    const newGrievance = {
+      id: grievanceId,
+      complainant_id: user.id,
+      category,
+      title,
+      description,
+      attachment_path: attachmentPath,
+      status: 'pending',
+      nodal_officer_id: nodalId,
+      timeline_days: timeline,
+    };
+    sendNotification({
+      action: 'submitted',
+      grievance: newGrievance,
+      remarks: 'Grievance registered and routed to Nodal Officer.',
+      actingUser: user,
+    });
+
     res.status(201).json({ message: 'Grievance submitted successfully.', grievanceId });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -340,6 +409,11 @@ app.post('/api/grievances/:id/action', authenticateToken, upload.single('resolut
         updateFields.push('resolution_report_path = ?');
         updateParams.push(resolutionReportPath);
       }
+    } else if (action === 'resolve' && user.role === 'complainant' && grievance.status === 'resolved') {
+      // Complainant accepting a proposed resolution — finalize and close
+      newStatus = 'resolved';
+      updateFields.push('status = ?', 'resolved_at = NOW()');
+      updateParams.push('resolved');
     } else if (action === 'appeal' && user.role === 'complainant' && grievance.status === 'resolved') {
       newStatus = 'escalated';
       updateFields.push('status = ?');
@@ -365,6 +439,11 @@ app.post('/api/grievances/:id/action', authenticateToken, upload.single('resolut
       'INSERT INTO grievance_history (grievance_id, action_by, action_type, remarks) VALUES (?, ?, ?, ?)',
       [id, user.id, action, historyRemarks]
     );
+
+    // Send email notification (non-blocking)
+    // When complainant accepts resolution, use special action for correct email template
+    const emailAction = (action === 'resolve' && user.role === 'complainant') ? 'resolve_accepted' : action;
+    sendNotification({ action: emailAction, grievance, remarks: historyRemarks, actingUser: user });
 
     res.json({ message: 'Grievance status updated successfully.', status: newStatus });
   } catch (err) {
@@ -523,24 +602,25 @@ app.get('/api/admin/reports', authenticateToken, async (req, res) => {
 
 // --- EMAIL NOTIFICATION SIMULATOR ROUTERS ---
 app.get('/api/reminders/nodal', authenticateToken, async (req, res) => {
-  // Simulates fetching standard notifications/email triggers about pending cases
+  // Fetches SLA warnings and triggers email alerts for urgent/overdue cases
   try {
     const pendingGrievances = await db.query(
-      `SELECT g.id, g.title, g.created_at, g.timeline_days, u.complainant_type, u.name as complainant_name,
+      `SELECT g.id, g.title, g.created_at, g.timeline_days, g.nodal_officer_id,
+              u.complainant_type, u.name as complainant_name,
               DATEDIFF(NOW(), g.created_at) as days_elapsed
        FROM grievances g
        JOIN users u ON g.complainant_id = u.id
        WHERE g.status != 'resolved'`
     );
-    
+
     const logs = [];
-    pendingGrievances.forEach(g => {
+    for (const g of pendingGrievances) {
       const remaining = g.timeline_days - g.days_elapsed;
       const isOverdue = remaining < 0;
-      
+
       let priority = 'low';
       let message = `Daily reminder: Grievance #${g.id} ("${g.title}") is pending. ${remaining} days remaining.`;
-      
+
       if (remaining <= 3 && remaining >= 0) {
         priority = 'high';
         message = `URGENT S.O.S: Grievance #${g.id} submitted by ${g.complainant_name} is nearing its timeline. Only ${remaining} days left to resolve!`;
@@ -548,7 +628,25 @@ app.get('/api/reminders/nodal', authenticateToken, async (req, res) => {
         priority = 'critical';
         message = `ESC SLA BREACH: Grievance #${g.id} is overdue by ${Math.abs(remaining)} days! The case is eligible for direct escalation to the Ombudsman.`;
       }
-      
+
+      // Send SLA email for high/critical cases (non-blocking)
+      if ((priority === 'high' || priority === 'critical') && g.nodal_officer_id) {
+        try {
+          const nodals = await db.query('SELECT id, name, email FROM users WHERE id = ?', [g.nodal_officer_id]);
+          if (nodals.length > 0) {
+            email.notifySlaWarning(
+              { id: g.id, title: g.title },
+              nodals[0],
+              g.complainant_name,
+              remaining,
+              isOverdue
+            );
+          }
+        } catch (e) {
+          console.error('[SLA Email Error]', e.message);
+        }
+      }
+
       logs.push({
         id: g.id,
         grievanceId: g.id,
@@ -557,8 +655,8 @@ app.get('/api/reminders/nodal', authenticateToken, async (req, res) => {
         message,
         timestamp: new Date().toISOString()
       });
-    });
-    
+    }
+
     res.json(logs);
   } catch (err) {
     res.status(500).json({ error: err.message });
