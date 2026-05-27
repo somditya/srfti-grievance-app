@@ -422,47 +422,6 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
           )}
         </div>
 
-        {/* Local Simulation Bypass UI */}
-        <div style={{ marginTop: '2rem', borderTop: '2px dashed var(--border-color)', paddingTop: '1.5rem' }}>
-          <h3 style={{ fontSize: '0.95rem', textAlign: 'center', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-            {language === 'en' ? '🔒 Developer Simulation Portal' : '🔒 डेवलपर सिमुलेशन पोर्टल'}
-          </h3>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', marginBottom: '1rem' }}>
-            {language === 'en'
-              ? 'Quickly jump to pre-configured accounts to preview dashboards instantly (ideal for review)'
-              : 'डैशबोर्डों का तुरंत पूर्वावलोकन करने के लिए पूर्व-कॉन्फ़िगर खातों में सीधे प्रवेश करें (समीक्षा के लिए आदर्श)'}
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-            <button
-              className="btn btn-secondary"
-              style={{ fontSize: '0.8rem', padding: '0.5rem' }}
-              onClick={() => handleSimulationLogin('complainant', 'rahul@student.srfti.ac.in', 'student')}
-            >
-              Rahul (Student)
-            </button>
-            <button
-              className="btn btn-secondary"
-              style={{ fontSize: '0.8rem', padding: '0.5rem' }}
-              onClick={() => handleSimulationLogin('nodal_officer', 'student_nodal@srfti.ac.in', 'student')}
-            >
-              Nodal (Student)
-            </button>
-            <button
-              className="btn btn-secondary"
-              style={{ fontSize: '0.8rem', padding: '0.5rem' }}
-              onClick={() => handleSimulationLogin('appellate_authority', 'ombudsman@srfti.ac.in', 'student')}
-            >
-              Ombudsman (Lokpal)
-            </button>
-            <button
-              className="btn btn-secondary"
-              style={{ fontSize: '0.8rem', padding: '0.5rem' }}
-              onClick={() => handleSimulationLogin('admin', 'admin@srfti.ac.in', null)}
-            >
-              System Admin
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );
