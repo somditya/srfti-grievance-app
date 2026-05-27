@@ -1,5 +1,5 @@
 # Docker Compose file for SRFTI Grievance Redressal Portal
-version: '3.8'
+name: srfti-grievance-app
 
 services:
   # 1. Database Service (MySQL 8.0)
@@ -18,10 +18,11 @@ services:
       # Persist data across container cycles
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p" ]
-      interval: 5s
-      timeout: 5s
-      retries: 12
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-psrfti_password"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
 
   # 2. Backend API Service (Node + Express)
   backend:
@@ -40,8 +41,9 @@ services:
       - DB_NAME=srfti_grievance
       - JWT_SECRET=srfti_super_jwt_secret_key
     volumes:
-      - ./server/uploads:/app/uploads
+      - ./server:/app
       - /app/node_modules
+    command: npm run dev
     depends_on:
       db:
         condition: service_healthy

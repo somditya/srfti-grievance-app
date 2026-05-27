@@ -164,8 +164,7 @@ function NodalDashboard({ t, currentUser, authToken }) {
       if (index !== -1) {
         // Only change status for resolve and in_progress actions; intermediate_reply keeps current status
         if (actionType === 'resolve') {
-          localGrievances[index].status = 'resolved';
-          localGrievances[index].resolved_at = new Date().toISOString();
+          localGrievances[index].status = 'nodal_resolved';
           localGrievances[index].resolution_report_path = resolutionReport ? URL.createObjectURL(resolutionReport) : null;
         } else if (actionType === 'in_progress') {
           localGrievances[index].status = 'in_progress';

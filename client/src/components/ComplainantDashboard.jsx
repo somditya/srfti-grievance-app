@@ -208,6 +208,7 @@ function ComplainantDashboard({ t, currentUser, authToken, systemSettings, appel
         if (actionType === 'resolve') {
           localGrievances[index].resolved_at = new Date().toISOString();
         }
+        // Note: when student appeals from nodal_resolved, status → escalated (handled above)
         localStorage.setItem('srfti_sim_grievances', JSON.stringify(localGrievances));
       }
 
@@ -220,7 +221,7 @@ function ComplainantDashboard({ t, currentUser, authToken, systemSettings, appel
         action_by_name: currentUser.name,
         action_by_role: 'complainant',
         action_type: actionType === 'appeal' ? 'appealed' : 'resolved',
-        remarks: actionRemarks || 'Resolution accepted by complainant.',
+        remarks: actionRemarks || (actionType === 'appeal' ? 'Resolution not satisfied — escalated to appellate.' : 'Resolution accepted by complainant.'),
         created_at: new Date().toISOString()
       });
       localStorage.setItem(`srfti_sim_history_${selectedGrievance.id}`, JSON.stringify(localHistory));
@@ -392,7 +393,7 @@ function ComplainantDashboard({ t, currentUser, authToken, systemSettings, appel
                   <tbody>
                     {grievances.map((g) => {
                       const stats = getTimelineStats(g);
-                      const isClosed = g.status === 'resolved';
+                      const isClosed = g.status === 'resolved' || g.status === 'nodal_resolved';
                       
                       return (
                         <tr key={g.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
@@ -413,7 +414,7 @@ function ComplainantDashboard({ t, currentUser, authToken, systemSettings, appel
                           </td>
                           <td style={{ padding: '0.75rem' }}>
                             <span className={`status-badge ${g.status}`}>
-                              {t(`status${g.status.charAt(0).toUpperCase() + g.status.slice(1).replace('_', '')}`)}
+                              {g.status === 'nodal_resolved' ? t('statusNodalResolved') : t(`status${g.status.charAt(0).toUpperCase() + g.status.slice(1).replace('_', '')}`)}
                             </span>
                           </td>
                           <td style={{ padding: '0.75rem' }}>
@@ -520,17 +521,27 @@ function ComplainantDashboard({ t, currentUser, authToken, systemSettings, appel
                       width: '24px', 
                       height: '24px', 
                       borderRadius: '50%', 
-                      backgroundColor: selectedGrievance.status === 'resolved' || selectedGrievance.status === 'escalated' ? 'var(--status-resolved-text)' : 'var(--border-color)', 
-                      color: selectedGrievance.status === 'resolved' || selectedGrievance.status === 'escalated' ? 'white' : 'var(--text-muted)',
+                      backgroundColor: (selectedGrievance.status === 'resolved' || selectedGrievance.status === 'escalated' || selectedGrievance.status === 'nodal_resolved') ? 'var(--status-resolved-text)' : 'var(--border-color)',
+                      color: (selectedGrievance.status === 'resolved' || selectedGrievance.status === 'escalated' || selectedGrievance.status === 'nodal_resolved') ? 'white' : 'var(--text-muted)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 'bold' 
                     }}>
-                      {selectedGrievance.status === 'resolved' || selectedGrievance.status === 'escalated' ? '✓' : '3'}
+                      {(selectedGrievance.status === 'resolved' || selectedGrievance.status === 'escalated' || selectedGrievance.status === 'nodal_resolved') ? '✓' : '3'}
                     </div>
                     <div>
                       <h6 style={{ fontSize: '0.85rem', fontWeight: 700 }}>{t('resolutionProposed')}</h6>
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Proposed findings</p>
                     </div>
                   </div>
+
+                  {selectedGrievance.status === 'nodal_resolved' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#d97706', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 'bold' }}>?</div>
+                      <div>
+                        <h6 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#d97706' }}>{language === 'en' ? 'Student Review Pending' : 'छात्र समीक्षा लंबित'}</h6>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{language === 'en' ? 'Awaiting satisfaction response' : 'संतुष्टि प्रतिक्रिया का इंतजार'}</p>
+                      </div>
+                    </div>
+                  )}
 
                   {selectedGrievance.status === 'escalated' && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -590,21 +601,21 @@ function ComplainantDashboard({ t, currentUser, authToken, systemSettings, appel
               </div>
             </div>
 
-            {/* Response Section (If grievance is in Proposed RESOLVED state) */}
-            {selectedGrievance.status === 'resolved' && !selectedGrievance.resolved_at && (
+            {/* Student Satisfaction Section (If nodal officer has proposed resolution) */}
+            {selectedGrievance.status === 'nodal_resolved' && (
               <div style={{ padding: '1.25rem', border: '2px solid #86efac', background: '#f0fdf4', borderRadius: 'var(--radius-sm)', marginTop: '1.5rem' }}>
                 <h4 style={{ color: '#166534', fontWeight: 700, marginBottom: '0.5rem', fontSize: '1rem' }}>
-                  {language === 'en' ? '⚠️ Nodal Officer Resolution Review Action Required' : '⚠️ नोडल अधिकारी समाधान समीक्षा कार्रवाई आवश्यक'}
+                  {language === 'en' ? '⚠️ Nodal Officer Resolution — Your Response Required' : '⚠️ नोडल अधिकारी समाधान — आपकी प्रतिक्रिया आवश्यक'}
                 </h4>
                 <p style={{ fontSize: '0.9rem', color: '#166534', marginBottom: '1rem' }}>
                   {language === 'en'
-                    ? 'The Nodal Officer has proposed a resolution. Please review and decide whether to accept and close the case, or reject it and escalate to the Appellate Authority.'
-                    : 'नोडल अधिकारी ने एक समाधान प्रस्तावित किया है। कृपया समीक्षा करें और तय करें कि क्या इसे स्वीकार कर मामला बंद करना है, या इसे अस्वीकार कर अपीलीय निकाय को अपील करना है।'}
+                    ? 'The Nodal Officer has proposed a resolution. Please indicate whether you are satisfied. If not satisfied, your case will be escalated to the Appellate Authority (Ombudsman).'
+                    : 'नोडल अधिकारी ने एक समाधान प्रस्तावित किया है। कृपया बताएं कि क्या आप संतुष्ट हैं। यदि संतुष्ट नहीं हैं, तो आपका मामला अपीलीय निकाय (लोकपाल) को भेजा जाएगा।'}
                 </p>
 
                 <div className="form-group">
                   <label className="form-label" htmlFor="complainant-remarks" style={{ color: '#166534' }}>
-                    Remarks / Feedback (Required if rejecting/appealing)
+                    {language === 'en' ? 'Feedback Remarks (Optional — required if not satisfied)' : 'फीडबैक टिप्पणियां (वैकल्पिक — यदि संतुष्ट नहीं हैं तो आवश्यक)'}
                   </label>
                   <textarea
                     id="complainant-remarks"
@@ -612,26 +623,26 @@ function ComplainantDashboard({ t, currentUser, authToken, systemSettings, appel
                     rows="3"
                     value={actionRemarks}
                     onChange={(e) => setActionRemarks(e.target.value)}
-                    placeholder="Provide your feedback or grounds for appeal here..."
+                    placeholder={language === 'en' ? 'Share your feedback on the resolution, or provide grounds for appeal if not satisfied...' : 'समाधान पर अपनी प्रतिक्रिया साझा करें, या यदि संतुष्ट नहीं हैं तो अपील के कारण बताएं...'}
                   />
                 </div>
 
                 <div style={{ display: 'flex', gap: '1rem' }}>
-                  <button 
-                    className="btn" 
+                  <button
+                    className="btn"
                     style={{ backgroundColor: '#16a34a', color: 'white' }}
                     onClick={() => handleAction('resolve')}
                     disabled={loading}
                   >
-                    {t('btnAccept')}
+                    {language === 'en' ? '✓ Satisfied — Accept Resolution' : '✓ संतुष्ट — समाधान स्वीकार करें'}
                   </button>
-                  <button 
-                    className="btn" 
+                  <button
+                    className="btn"
                     style={{ backgroundColor: '#dc2626', color: 'white' }}
                     onClick={() => handleAction('appeal')}
                     disabled={loading}
                   >
-                    {t('btnAppeal')}
+                    {language === 'en' ? '✗ Not Satisfied — Escalate to Appellate' : '✗ संतुष्ट नहीं — अपीलीय निकाय को भेजें'}
                   </button>
                 </div>
               </div>

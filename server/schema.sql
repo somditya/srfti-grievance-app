@@ -19,6 +19,11 @@ CREATE TABLE users (
   role ENUM('complainant', 'nodal_officer', 'appellate_authority', 'admin') NOT NULL,
   complainant_type ENUM('student', 'faculty', 'staff') NULL,
   phone VARCHAR(20) NULL,
+  department VARCHAR(255) NULL,
+  batch VARCHAR(50) NULL,
+  gender ENUM('Male', 'Female', 'Other') NULL,
+  category ENUM('General', 'SC', 'ST', 'OBC', 'EWS') NULL,
+  registration_no VARCHAR(50) NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -47,7 +52,7 @@ CREATE TABLE grievances (
   description TEXT NOT NULL,
   attachment_path VARCHAR(255) NULL,
   resolution_report_path VARCHAR(255) NULL,
-  status ENUM('pending', 'in_progress', 'resolved', 'escalated') DEFAULT 'pending',
+  status ENUM('pending', 'in_progress', 'nodal_resolved', 'resolved', 'escalated') DEFAULT 'pending',
   nodal_officer_id INT NULL,
   timeline_days INT NOT NULL, -- Captured snapshot from system settings at filing time
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -75,6 +80,10 @@ INSERT INTO system_settings (setting_key, setting_value) VALUES
 ('student_resolution_days', '22'),
 ('faculty_resolution_days', '15'),
 ('staff_resolution_days', '30');
+
+-- Seed Sample Student User (for testing)
+INSERT INTO users (name, email, password_hash, role, complainant_type, phone, department, batch, gender, category, registration_no) VALUES
+('Rahul Banerjee', 'rahul@student.srfti.ac.in', '$2a$10$8d6421d663b4c28fd3ebc498332f249011d118945588d0a35cb9bc4b8ca09d9e', 'complainant', 'student', '+91-8889990001', 'Cinematography', '2023-2025', 'Male', 'General', 'SRFTI/2023/00123');
 
 -- Seed Default Appellate Authorities (Ombudsman for students)
 INSERT INTO appellate_officers (complainant_type, name, title, email) VALUES

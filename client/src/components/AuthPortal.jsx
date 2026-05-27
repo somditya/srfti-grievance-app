@@ -17,6 +17,13 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
   const [phone, setPhone] = useState('');
   const [complainantType, setComplainantType] = useState('student');
 
+  // Student-specific fields
+  const [department, setDepartment] = useState('');
+  const [batch, setBatch] = useState('');
+  const [gender, setGender] = useState('');
+  const [category, setCategory] = useState('');
+  const [registrationNo, setRegistrationNo] = useState('');
+
   // Input Validation
   const validateDomain = (emailVal) => {
     const domainRegex = /^[a-zA-Z0-9._%+-]+@([a-zA-Z0-9.-]*\.)?srfti\.ac\.in$/;
@@ -27,7 +34,7 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
     e.preventDefault();
     setError(null);
     setSuccess(null);
-    
+
     // 1. Validation checks
     if (!email || !password || (!isLoginMode && (!name || !confirmPassword))) {
       setError(t('errFieldsRequired'));
@@ -44,6 +51,14 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
       return;
     }
 
+    // Student-specific validation
+    if (!isLoginMode && complainantType === 'student') {
+      if (!department || !batch || !gender || !category || !registrationNo) {
+        setError(t('errFieldsRequired'));
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
@@ -54,22 +69,30 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password })
         });
-        
+
         const data = await res.json();
         if (!res.ok) throw new Error(data.message || 'Login failed.');
-        
+
         handleLogin(data.token, data.user);
       } else {
         // Registration API Call
+        const regBody = { name, email, password, complainant_type: complainantType, phone };
+        if (complainantType === 'student') {
+          regBody.department = department;
+          regBody.batch = batch;
+          regBody.gender = gender;
+          regBody.category = category;
+          regBody.registration_no = registrationNo;
+        }
         const res = await fetch(`${API_URL}/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, password, complainant_type: complainantType, phone })
+          body: JSON.stringify(regBody)
         });
-        
+
         const data = await res.json();
         if (!res.ok) throw new Error(data.message || 'Registration failed.');
-        
+
         setSuccess(t('successAction') + ' Please sign in.');
         setIsLoginMode(true);
         // Clean fields
@@ -97,7 +120,7 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
       exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours
     }));
     const token = `${header}.${payload}.signature_placeholder`;
-    
+
     handleLogin(token, {
       id: 99,
       name: role === 'admin' ? 'Simulated Admin' : (role === 'nodal_officer' ? `Nodal Officer (${complainantTypeSim})` : 'Rahul (Simulated Student)'),
@@ -109,7 +132,7 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
   };
 
   return (
-    <div style={{ maxWidth: '500px', margin: '2rem auto' }}>
+    <div style={{ maxWidth: '550px', margin: '2rem auto' }}>
       <div className="card">
         <div className="card-header" style={{ justifyContent: 'center' }}>
           <h2 style={{ fontSize: '1.4rem' }}>
@@ -139,27 +162,27 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
         )}
 
         <form onSubmit={handleSubmit} aria-label={isLoginMode ? "Login Form" : "Registration Form"}>
-          
+
           {!isLoginMode && (
             <>
               <div className="form-group">
                 <label className="form-label" htmlFor="reg-name">{t('fieldFullName')} *</label>
-                <input 
-                  type="text" 
-                  id="reg-name" 
-                  className="form-control" 
-                  value={name} 
-                  onChange={(e) => setName(e.target.value)} 
+                <input
+                  type="text"
+                  id="reg-name"
+                  className="form-control"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   required
                 />
               </div>
 
               <div className="form-group">
                 <label className="form-label" htmlFor="reg-type">{t('fieldComplainantType')} *</label>
-                <select 
-                  id="reg-type" 
-                  className="form-control" 
-                  value={complainantType} 
+                <select
+                  id="reg-type"
+                  className="form-control"
+                  value={complainantType}
                   onChange={(e) => setComplainantType(e.target.value)}
                 >
                   <option value="student">{t('selectStudent')}</option>
@@ -167,18 +190,103 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
                   <option value="staff">{t('selectStaff')}</option>
                 </select>
               </div>
+
+              {complainantType === 'student' && (
+                <>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="reg-department">{t('fieldDepartment')} *</label>
+                    <select
+                      id="reg-department"
+                      className="form-control"
+                      value={department}
+                      onChange={(e) => setDepartment(e.target.value)}
+                      required
+                    >
+                      <option value="">{language === 'en' ? 'Select Department' : 'विभाग चुनें'}</option>
+                      <option value="Cinematography">Cinematography</option>
+                      <option value="Direction & Screenplay Writing">Direction & Screenplay Writing</option>
+                      <option value="Editing">Editing</option>
+                      <option value="Sound Recording & Design">Sound Recording & Design</option>
+                      <option value="Animation & Visual Effects">Animation & Visual Effects</option>
+                      <option value="Producing">Producing</option>
+                      <option value="Film Studies">Film Studies</option>
+                      <option value="Acting">Acting</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="reg-batch">{t('fieldBatch')} *</label>
+                    <input
+                      type="text"
+                      id="reg-batch"
+                      className="form-control"
+                      placeholder={language === 'en' ? 'e.g. 2023-2025' : 'जैसे 2023-2025'}
+                      value={batch}
+                      onChange={(e) => setBatch(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="reg-gender">{t('fieldGender')} *</label>
+                    <select
+                      id="reg-gender"
+                      className="form-control"
+                      value={gender}
+                      onChange={(e) => setGender(e.target.value)}
+                      required
+                    >
+                      <option value="">{language === 'en' ? 'Select Gender' : 'लिंग चुनें'}</option>
+                      <option value="Male">{language === 'en' ? 'Male' : 'पुरुष'}</option>
+                      <option value="Female">{language === 'en' ? 'Female' : 'महिला'}</option>
+                      <option value="Other">{language === 'en' ? 'Other' : 'अन्य'}</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="reg-category">{t('fieldCategory')} *</label>
+                    <select
+                      id="reg-category"
+                      className="form-control"
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      required
+                    >
+                      <option value="">{language === 'en' ? 'Select Category' : 'श्रेणी चुनें'}</option>
+                      <option value="General">{language === 'en' ? 'General' : 'सामान्य'}</option>
+                      <option value="SC">{language === 'en' ? 'SC' : 'अनुसूचित जाति'}</option>
+                      <option value="ST">{language === 'en' ? 'ST' : 'अनुसूचित जनजाति'}</option>
+                      <option value="OBC">{language === 'en' ? 'OBC' : 'अन्य पिछड़ा वर्ग'}</option>
+                      <option value="EWS">{language === 'en' ? 'EWS' : 'आर्थिक कमजोर वर्ग'}</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="reg-no">{t('fieldRegistrationNo')} *</label>
+                    <input
+                      type="text"
+                      id="reg-no"
+                      className="form-control"
+                      placeholder={language === 'en' ? 'e.g. SRFTI/2023/00123' : 'जैसे SRFTI/2023/00123'}
+                      value={registrationNo}
+                      onChange={(e) => setRegistrationNo(e.target.value)}
+                      required
+                    />
+                  </div>
+                </>
+              )}
             </>
           )}
 
           <div className="form-group">
             <label className="form-label" htmlFor="auth-email">{t('fieldEmail')} *</label>
-            <input 
-              type="email" 
-              id="auth-email" 
-              className="form-control" 
+            <input
+              type="email"
+              id="auth-email"
+              className="form-control"
               placeholder={isLoginMode ? "email@srfti.ac.in" : "username@srfti.ac.in"}
-              value={email} 
-              onChange={(e) => setEmail(e.target.value)} 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
             />
             {!isLoginMode && <p className="form-help" id="email-help">{t('fieldEmailHelp')}</p>}
@@ -186,12 +294,12 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
 
           <div className="form-group">
             <label className="form-label" htmlFor="auth-pass">{t('fieldPassword')} *</label>
-            <input 
-              type="password" 
-              id="auth-pass" 
-              className="form-control" 
-              value={password} 
-              onChange={(e) => setPassword(e.target.value)} 
+            <input
+              type="password"
+              id="auth-pass"
+              className="form-control"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               required
             />
           </div>
@@ -200,33 +308,33 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
             <>
               <div className="form-group">
                 <label className="form-label" htmlFor="auth-confirm">{t('fieldConfirmPassword')} *</label>
-                <input 
-                  type="password" 
-                  id="auth-confirm" 
-                  className="form-control" 
-                  value={confirmPassword} 
-                  onChange={(e) => setConfirmPassword(e.target.value)} 
+                <input
+                  type="password"
+                  id="auth-confirm"
+                  className="form-control"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                 />
               </div>
 
               <div className="form-group">
                 <label className="form-label" htmlFor="reg-phone">{t('fieldPhone')}</label>
-                <input 
-                  type="tel" 
-                  id="reg-phone" 
-                  className="form-control" 
-                  value={phone} 
+                <input
+                  type="tel"
+                  id="reg-phone"
+                  className="form-control"
+                  value={phone}
                   placeholder="+91-"
-                  onChange={(e) => setPhone(e.target.value)} 
+                  onChange={(e) => setPhone(e.target.value)}
                 />
               </div>
             </>
           )}
 
-          <button 
-            type="submit" 
-            className="btn btn-primary" 
+          <button
+            type="submit"
+            className="btn btn-primary"
             style={{ width: '100%', marginTop: '1rem' }}
             disabled={loading}
           >
@@ -238,8 +346,8 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
           {isLoginMode ? (
             <p>
               {t('noAccountText')}{' '}
-              <button 
-                className="btn btn-secondary" 
+              <button
+                className="btn btn-secondary"
                 style={{ border: 'none', background: 'none', padding: '0', color: 'var(--primary)', textDecoration: 'underline', fontWeight: 700 }}
                 onClick={() => { setIsLoginMode(false); setError(null); }}
               >
@@ -249,8 +357,8 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
           ) : (
             <p>
               {t('hasAccountText')}{' '}
-              <button 
-                className="btn btn-secondary" 
+              <button
+                className="btn btn-secondary"
                 style={{ border: 'none', background: 'none', padding: '0', color: 'var(--primary)', textDecoration: 'underline', fontWeight: 700 }}
                 onClick={() => { setIsLoginMode(true); setError(null); }}
               >
@@ -266,35 +374,35 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
             {language === 'en' ? '🔒 Developer Simulation Portal' : '🔒 डेवलपर सिमुलेशन पोर्टल'}
           </h3>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', marginBottom: '1rem' }}>
-            {language === 'en' 
+            {language === 'en'
               ? 'Quickly jump to pre-configured accounts to preview dashboards instantly (ideal for review)'
               : 'डैशबोर्डों का तुरंत पूर्वावलोकन करने के लिए पूर्व-कॉन्फ़िगर खातों में सीधे प्रवेश करें (समीक्षा के लिए आदर्श)'}
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-            <button 
-              className="btn btn-secondary" 
-              style={{ fontSize: '0.8rem', padding: '0.5rem' }} 
+            <button
+              className="btn btn-secondary"
+              style={{ fontSize: '0.8rem', padding: '0.5rem' }}
               onClick={() => handleSimulationLogin('complainant', 'rahul@student.srfti.ac.in', 'student')}
             >
               Rahul (Student)
             </button>
-            <button 
-              className="btn btn-secondary" 
-              style={{ fontSize: '0.8rem', padding: '0.5rem' }} 
+            <button
+              className="btn btn-secondary"
+              style={{ fontSize: '0.8rem', padding: '0.5rem' }}
               onClick={() => handleSimulationLogin('nodal_officer', 'student_nodal@srfti.ac.in', 'student')}
             >
               Nodal (Student)
             </button>
-            <button 
-              className="btn btn-secondary" 
-              style={{ fontSize: '0.8rem', padding: '0.5rem' }} 
+            <button
+              className="btn btn-secondary"
+              style={{ fontSize: '0.8rem', padding: '0.5rem' }}
               onClick={() => handleSimulationLogin('appellate_authority', 'ombudsman@srfti.ac.in', 'student')}
             >
               Ombudsman (Lokpal)
             </button>
-            <button 
-              className="btn btn-secondary" 
-              style={{ fontSize: '0.8rem', padding: '0.5rem' }} 
+            <button
+              className="btn btn-secondary"
+              style={{ fontSize: '0.8rem', padding: '0.5rem' }}
               onClick={() => handleSimulationLogin('admin', 'admin@srfti.ac.in', null)}
             >
               System Admin

@@ -8,6 +8,8 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+
+
 const db = require('./db');
 const email = require('./emailService');
 
@@ -124,35 +126,48 @@ app.get('/api/appellate', async (req, res) => {
 
 // --- AUTH ROUTERS ---
 app.post('/api/auth/register', async (req, res) => {
-  const { name, email, password, complainant_type, phone } = req.body;
-  
+  const { name, email, password, complainant_type, phone, department, batch, gender, category, registration_no } = req.body;
+
   if (!name || !email || !password || !complainant_type) {
     return res.status(400).json({ message: 'Please fill all required fields.' });
   }
-  
+
+  // Student-specific mandatory fields
+  if (complainant_type === 'student') {
+    if (!department || !batch || !gender || !category || !registration_no) {
+      return res.status(400).json({ message: 'Department, Batch, Gender, Category, and Registration No. are mandatory for student registration.' });
+    }
+  }
+
   // Strict official domain validation
   const domainRegex = /^[a-zA-Z0-9._%+-]+@([a-zA-Z0-9.-]*\.)?srfti\.ac\.in$/;
   if (!domainRegex.test(email)) {
     return res.status(400).json({ message: 'Registration is restricted to official email addresses (@srfti.ac.in) only.' });
   }
-  
+
   try {
     // Check if user already exists
     const existing = await db.query('SELECT id FROM users WHERE email = ?', [email]);
     if (existing.length > 0) {
       return res.status(400).json({ message: 'User with this email is already registered.' });
     }
-    
+
     // Hash password
     const salt = await bcrypt.genSalt(10);
     const hash = await bcrypt.hash(password, salt);
-    
+
     // Insert Complainant
+    const isStudent = complainant_type === 'student';
     const result = await db.query(
-      'INSERT INTO users (name, email, password_hash, role, complainant_type, phone) VALUES (?, ?, ?, ?, ?, ?)',
-      [name, email, hash, 'complainant', complainant_type, phone || null]
+      'INSERT INTO users (name, email, password_hash, role, complainant_type, phone, department, batch, gender, category, registration_no) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, email, hash, 'complainant', complainant_type, phone || null,
+       isStudent ? department : null,
+       isStudent ? batch : null,
+       isStudent ? gender : null,
+       isStudent ? category : null,
+       isStudent ? registration_no : null]
     );
-    
+
     // Send registration confirmation email (non-blocking)
     email.sendEmail({
       to: email,
@@ -165,6 +180,11 @@ app.post('/api/auth/register', async (req, res) => {
           <table style="border-collapse: collapse; width: 100%; margin: 1rem 0;">
             <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Email</td><td style="padding: 8px; border: 1px solid #ddd;">${email}</td></tr>
             <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Sector</td><td style="padding: 8px; border: 1px solid #ddd;">${complainant_type.charAt(0).toUpperCase() + complainant_type.slice(1)}</td></tr>
+            ${isStudent ? `
+            <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Department</td><td style="padding: 8px; border: 1px solid #ddd;">${department}</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Batch</td><td style="padding: 8px; border: 1px solid #ddd;">${batch}</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Registration No.</td><td style="padding: 8px; border: 1px solid #ddd;">${registration_no}</td></tr>
+            ` : ''}
           </table>
           <p>You can now log in to file and track grievances. You will receive email notifications for all updates.</p>
           <p style="color: #666; font-size: 0.85rem;">SRFTI Grievance Redressal Portal<br/>agent@ailab.srfti.ac.in</p>
@@ -405,7 +425,8 @@ app.post('/api/grievances/:id/action', authenticateToken, upload.single('resolut
   const user = req.user;
   const resolutionReportPath = req.file ? `/uploads/${req.file.filename}` : null;
 
-  if (!remarks) {
+  // Remarks are required for all actions except when complainant accepts resolution (optional feedback)
+  if (!remarks && !(action === 'resolve' && user.role === 'complainant')) {
     return res.status(400).json({ message: 'Remarks are required.' });
   }
 
@@ -431,19 +452,19 @@ app.post('/api/grievances/:id/action', authenticateToken, upload.single('resolut
       // Non-committal update: keep status as in_progress, no resolution report required
       newStatus = grievance.status;
     } else if (action === 'resolve' && user.role === 'nodal_officer') {
-      newStatus = 'resolved';
-      updateFields.push('status = ?', 'resolved_at = NOW()');
-      updateParams.push('resolved');
+      newStatus = 'nodal_resolved';
+      updateFields.push('status = ?');
+      updateParams.push('nodal_resolved');
       if (resolutionReportPath) {
         updateFields.push('resolution_report_path = ?');
         updateParams.push(resolutionReportPath);
       }
-    } else if (action === 'resolve' && user.role === 'complainant' && grievance.status === 'resolved') {
+    } else if (action === 'resolve' && user.role === 'complainant' && grievance.status === 'nodal_resolved') {
       // Complainant accepting a proposed resolution — finalize and close
       newStatus = 'resolved';
       updateFields.push('status = ?', 'resolved_at = NOW()');
       updateParams.push('resolved');
-    } else if (action === 'appeal' && user.role === 'complainant' && grievance.status === 'resolved') {
+    } else if (action === 'appeal' && user.role === 'complainant' && grievance.status === 'nodal_resolved') {
       newStatus = 'escalated';
       updateFields.push('status = ?');
       updateParams.push('escalated');
@@ -582,17 +603,17 @@ app.get('/api/admin/reports', authenticateToken, async (req, res) => {
   try {
     // 1. Overall stats
     const totalCount = await db.query('SELECT COUNT(*) as count FROM grievances');
-    const pendingCount = await db.query("SELECT COUNT(*) as count FROM grievances WHERE status = 'pending'");
+    const pendingCount = await db.query("SELECT COUNT(*) as count FROM grievances WHERE status NOT IN ('resolved', 'escalated')");
     const progressCount = await db.query("SELECT COUNT(*) as count FROM grievances WHERE status = 'in_progress'");
     const resolvedCount = await db.query("SELECT COUNT(*) as count FROM grievances WHERE status = 'resolved'");
     const escalatedCount = await db.query("SELECT COUNT(*) as count FROM grievances WHERE status = 'escalated'");
     
     // 2. Sector wise distribution (Student, Faculty, Staff)
     const sectorStats = await db.query(
-      `SELECT u.complainant_type, 
+      `SELECT u.complainant_type,
               COUNT(g.id) as total,
               SUM(CASE WHEN g.status = 'resolved' THEN 1 ELSE 0 END) as resolved,
-              SUM(CASE WHEN g.status != 'resolved' THEN 1 ELSE 0 END) as pending
+              SUM(CASE WHEN g.status NOT IN ('resolved', 'escalated') THEN 1 ELSE 0 END) as pending
        FROM grievances g
        JOIN users u ON g.complainant_id = u.id
        GROUP BY u.complainant_type`
