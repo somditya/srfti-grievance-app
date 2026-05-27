@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import LandingPage from './components/LandingPage';
 import AuthPortal from './components/AuthPortal';
+import ForgotPassword from './components/ForgotPassword';
+import ResetPassword from './components/ResetPassword';
 import ComplainantDashboard from './components/ComplainantDashboard';
 import NodalDashboard from './components/NodalDashboard';
 import AppellateDashboard from './components/AppellateDashboard';
@@ -12,9 +14,19 @@ import { translations } from './translations';
 
 export const API_URL = '/api';
 
+// Map URL hash routes to internal view names
+function getViewFromHash() {
+  const hash = window.location.hash.replace('#', '') || 'landing';
+  if (hash.startsWith('/reset-password')) return 'reset-password';
+  if (hash.startsWith('/forgot-password')) return 'forgot-password';
+  if (hash.startsWith('/auth')) return 'auth';
+  if (hash.startsWith('/dashboard')) return 'dashboard';
+  return 'landing';
+}
+
 function App() {
   // Global States
-  const [currentView, setCurrentView] = useState('landing'); // landing, auth, dashboard
+  const [currentView, setCurrentView] = useState(getViewFromHash); // landing, auth, dashboard, forgot-password, reset-password
   const [currentUser, setCurrentUser] = useState(null);
   const [authToken, setAuthToken] = useState(localStorage.getItem('srfti_token') || null);
   
@@ -103,6 +115,7 @@ function App() {
     setCurrentUser(userDetails);
     setAuthToken(token);
     setCurrentView('dashboard');
+    window.location.hash = '/dashboard';
   };
 
   const handleLogout = () => {
@@ -110,7 +123,33 @@ function App() {
     setAuthToken(null);
     localStorage.removeItem('srfti_token');
     setCurrentView('landing');
+    window.location.hash = '/';
   };
+
+  // Navigate and sync URL hash
+  const navigateTo = (view) => {
+    const hashMap = {
+      'landing': '/',
+      'auth': '/auth',
+      'dashboard': '/dashboard',
+      'forgot-password': '/forgot-password',
+      'reset-password': '/reset-password',
+    };
+    window.location.hash = hashMap[view] || '/';
+    setCurrentView(view);
+  };
+
+  // Listen for browser back/forward navigation
+  useEffect(() => {
+    const handleHashChange = () => {
+      const view = getViewFromHash();
+      if (view !== 'dashboard') {
+        setCurrentView(view);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   // Safe Localization Lookup Helper
   const t = (key) => {
@@ -133,7 +172,7 @@ function App() {
         currentUser={currentUser}
         handleLogout={handleLogout}
         t={t}
-        setCurrentView={setCurrentView}
+        setCurrentView={navigateTo}
       />
       
       <main id="main-content-anchor" className="main-content">
@@ -147,24 +186,40 @@ function App() {
         )}
         
         {currentView === 'landing' && (
-          <LandingPage 
-            t={t} 
-            setCurrentView={setCurrentView} 
+          <LandingPage
+            t={t}
+            setCurrentView={navigateTo}
             systemSettings={systemSettings}
             appellateConfigs={appellateConfigs}
             language={language}
           />
         )}
-        
+
         {currentView === 'auth' && (
-          <AuthPortal 
-            t={t} 
-            handleLogin={handleLogin} 
-            setCurrentView={setCurrentView}
+          <AuthPortal
+            t={t}
+            handleLogin={handleLogin}
+            setCurrentView={navigateTo}
             language={language}
           />
         )}
-        
+
+        {currentView === 'forgot-password' && (
+          <ForgotPassword
+            t={t}
+            setCurrentView={navigateTo}
+            language={language}
+          />
+        )}
+
+        {currentView === 'reset-password' && (
+          <ResetPassword
+            t={t}
+            setCurrentView={navigateTo}
+            language={language}
+          />
+        )}
+
         {currentView === 'dashboard' && currentUser && (
           <>
             {currentUser.role === 'complainant' && (

@@ -138,19 +138,12 @@ function Header({
               </div>
             ) : (
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button 
-                  className="btn btn-secondary"
-                  style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', color: '#ffffff', borderColor: '#ffffff' }}
-                  onClick={() => { setCurrentView('auth'); }}
-                >
-                  {t('login')}
-                </button>
-                <button 
+                <button
                   className="btn btn-accent"
                   style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}
                   onClick={() => { setCurrentView('auth'); }}
                 >
-                  {t('register')}
+                  {t('login')}
                 </button>
               </div>
             )}

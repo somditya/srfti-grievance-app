@@ -241,6 +241,94 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// --- FORGOT PASSWORD ---
+app.post('/api/auth/forgot-password', async (req, res) => {
+  const { email: userEmail } = req.body;
+
+  if (!userEmail) {
+    return res.status(400).json({ message: 'Please provide an email address.' });
+  }
+
+  try {
+    const users = await db.query('SELECT id, name, email FROM users WHERE email = ?', [userEmail]);
+    if (users.length === 0) {
+      return res.json({ message: 'If an account with that email exists, a password reset link has been sent.' });
+    }
+
+    const user = users[0];
+
+    // Generate a reset token valid for 1 hour
+    const resetToken = jwt.sign(
+      { id: user.id, email: user.email, purpose: 'password_reset' },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/#/reset-password?token=${resetToken}`;
+
+    await email.sendEmail({
+      to: user.email,
+      subject: 'SRFTI Grievance Portal - Password Reset Request',
+      html: '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">'
+        + '<h2 style="color:#1e40af;">Password Reset Request</h2>'
+        + '<p>Dear <strong>' + user.name + '</strong>,</p>'
+        + '<p>We received a request to reset your password for the SRFTI Grievance Redressal Portal. Click the button below to set a new password. This link is valid for <strong>1 hour</strong>.</p>'
+        + '<div style="text-align:center;margin:2rem 0;"><a href="' + resetUrl + '" style="background-color:#1e40af;color:#fff;padding:12px 32px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block;">Reset Password</a></div>'
+        + '<p style="color:#6b7280;font-size:0.85rem;">If the button does not work, copy and paste this link: ' + resetUrl + '</p>'
+        + '<p style="color:#dc2626;font-size:0.85rem;">If you did not request a password reset, please ignore this email.</p>'
+        + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:1.5rem 0;" />'
+        + '<p style="color:#6b7280;font-size:0.8rem;">SRFTI Grievance Redressal Portal<br/>agent@ailab.srfti.ac.in | Satyajit Ray Film and Television Institute</p>'
+        + '</div>',
+      text: 'Password reset requested. Visit: ' + resetUrl + ' (valid 1 hour). If you did not request this, ignore this email.',
+    });
+
+    res.json({ message: 'If an account with that email exists, a password reset link has been sent.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- RESET PASSWORD ---
+app.post('/api/auth/reset-password', async (req, res) => {
+  const { token, newPassword } = req.body;
+
+  if (!token || !newPassword) {
+    return res.status(400).json({ message: 'Token and new password are required.' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    if (decoded.purpose !== 'password_reset') {
+      return res.status(400).json({ message: 'Invalid reset token.' });
+    }
+
+    const users = await db.query('SELECT id FROM users WHERE id = ? AND email = ?', [decoded.id, decoded.email]);
+    if (users.length === 0) {
+      return res.status(400).json({ message: 'Invalid or expired token.' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hash = await bcrypt.hash(newPassword, salt);
+
+    await db.query('UPDATE users SET password_hash = ? WHERE id = ?', [hash, decoded.id]);
+
+    res.json({ message: 'Password reset successfully. Please log in with your new password.' });
+  } catch (err) {
+    if (err.name === 'TokenExpiredError') {
+      return res.status(400).json({ message: 'Reset link has expired. Please request a new one.' });
+    }
+    if (err.name === 'JsonWebTokenError') {
+      return res.status(400).json({ message: 'Invalid reset token.' });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- GRIEVANCE ROUTERS ---
 
 // File new grievance
