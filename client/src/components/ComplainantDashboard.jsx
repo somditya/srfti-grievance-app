@@ -440,9 +440,9 @@ function ComplainantDashboard({ t, currentUser, authToken, systemSettings, appel
       {/* Specific Grievance Details Modal */}
       {selectedGrievance && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }} role="dialog" aria-modal="true" aria-labelledby="modal-title">
-          <div className="card" style={{ maxWidth: '800px', width: '100%', maxHeight: '90vh', overflowY: 'auto', backgroundColor: 'var(--bg-app)', border: '2px solid var(--primary)' }}>
+          <div className="card" style={{ maxWidth: '800px', width: '100%', maxHeight: '90vh', overflowY: 'auto', backgroundColor: 'var(--bg-card)', border: '2px solid var(--primary)' }}>
             
-            <div className="card-header">
+            <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 id="modal-title" style={{ fontSize: '1.25rem' }}>
                 Grievance Tracking: {selectedGrievance.case_id}
               </h3>

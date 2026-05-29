@@ -158,7 +158,7 @@ function App() {
 
   return (
     <div className="app-container gradient-bg">
-      <a href="#main-content-anchor" className="sr-only focus-visible:not-sr-only btn btn-primary" style={{ position: 'absolute', zIndex: 9999 }}>
+      <a href="#main-content-anchor" className="sr-only focus-visible:not-sr-only btn btn-primary" style={{ position: 'absolute', zIndex: 100 }}>
         {language === 'en' ? 'Skip to Content' : 'मुख्य सामग्री पर जाएं'}
       </a>
       
