@@ -332,6 +332,30 @@ async function notifySlaWarning(grievance, nodalOfficer, complainantName, daysRe
   });
 }
 
+async function notifyHearingConvened(grievance, complainant, remarks) {
+  await sendEmail({
+    to: complainant.email,
+    subject: `Grievance #${grievance.case_id} — Hearing Convened by Appellate Authority`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #7c3aed;">Appellate Hearing Convened</h2>
+        <p>Dear <strong>${complainant.name}</strong>,</p>
+        <p>The Appellate Authority has convened a hearing for your escalated grievance.</p>
+        <table style="border-collapse: collapse; width: 100%; margin: 1rem 0;">
+          <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Case ID</td><td style="padding: 8px; border: 1px solid #ddd;">#${grievance.case_id}</td></tr>
+          <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Subject</td><td style="padding: 8px; border: 1px solid #ddd;">${grievance.title}</td></tr>
+        </table>
+        <div style="background: #ede9fe; border-left: 4px solid #7c3aed; padding: 1rem; margin: 1rem 0;">
+          <p style="margin: 0; font-style: italic;">"${remarks}"</p>
+        </div>
+        <p>You may be requested to provide additional information or attend the hearing as scheduled by the Appellate Authority.</p>
+        ${emailFooter()}
+      </div>
+    `,
+    text: `Appellate hearing convened for Grievance #${grievance.case_id}. Remarks: "${remarks}"`,
+  });
+}
+
 module.exports = {
   sendEmail,
   verifySmtpConnection,
@@ -343,4 +367,5 @@ module.exports = {
   notifyFinalRuling,
   notifyResolutionAccepted,
   notifySlaWarning,
+  notifyHearingConvened,
 };

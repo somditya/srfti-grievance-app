@@ -24,6 +24,7 @@ CREATE TABLE users (
   gender ENUM('Male', 'Female', 'Other') NULL,
   category ENUM('General', 'SC', 'ST', 'OBC', 'EWS') NULL,
   registration_no VARCHAR(50) NULL,
+  email_verified BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

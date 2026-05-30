@@ -1,6 +1,6 @@
 // Combined Auth Login and Registration portal with email domain locks and simulator triggers
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { API_URL } from '../App';
 
 function AuthPortal({ t, handleLogin, setCurrentView, language }) {
@@ -9,6 +9,11 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
   const [success, setSuccess] = useState(null);
   const [loading, setLoading] = useState(false);
   const [emailExists, setEmailExists] = useState(false);
+  const [passwordErrors, setPasswordErrors] = useState([]);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [resendingOtp, setResendingOtp] = useState(false);
+  const [loginOtpSent, setLoginOtpSent] = useState(false);
 
   // Form Fields
   const [email, setEmail] = useState('');
@@ -25,10 +30,48 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
   const [category, setCategory] = useState('');
   const [registrationNo, setRegistrationNo] = useState('');
 
+  // CAPTCHA state
+  const [captchaId, setCaptchaId] = useState('');
+  const [captchaQuestion, setCaptchaQuestion] = useState('');
+  const [captchaAnswer, setCaptchaAnswer] = useState('');
+
+  // Load CAPTCHA on mount
+  useEffect(() => {
+    fetchCaptcha();
+  }, []);
+
+  const fetchCaptcha = async () => {
+    try {
+      const res = await fetch(`${API_URL}/auth/captcha`);
+      const data = await res.json();
+      setCaptchaId(data.id);
+      setCaptchaQuestion(data.question);
+    } catch (err) {
+      console.error('Failed to load CAPTCHA:', err);
+    }
+  };
+
+  // Refresh CAPTCHA
+  const refreshCaptcha = () => {
+    setCaptchaAnswer('');
+    fetchCaptcha();
+  };
+
   // Input Validation
   const validateDomain = (emailVal) => {
     const domainRegex = /^[a-zA-Z0-9._%+-]+@([a-zA-Z0-9.-]*\.)?srfti\.ac\.in$/;
     return domainRegex.test(emailVal);
+  };
+
+  // Password validation function
+  const validatePasswordFrontend = (passwordVal) => {
+    const errors = [];
+    if (passwordVal.length < 8) errors.push('At least 8 characters');
+    if (!/[A-Z]/.test(passwordVal)) errors.push('one uppercase letter');
+    if (!/[a-z]/.test(passwordVal)) errors.push('one lowercase letter');
+    if (!/[0-9]/.test(passwordVal)) errors.push('one number');
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(passwordVal)) errors.push('one special character');
+    return errors;
   };
 
   const handleSubmit = async (e) => {
@@ -36,6 +79,7 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
     setError(null);
     setSuccess(null);
     setEmailExists(false);
+    setPasswordErrors([]);
 
     // 1. Validation checks
     if (!email || !password || (!isLoginMode && (!name || !confirmPassword))) {
@@ -43,9 +87,17 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
       return;
     }
 
-    if (!isLoginMode && password !== confirmPassword) {
-      setError(t('errPasswordMismatch'));
-      return;
+    // Password validation for registration and password reset
+    if (!isLoginMode) {
+      const errors = validatePasswordFrontend(password);
+      if (errors.length > 0) {
+        setPasswordErrors(errors);
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError(t('errPasswordMismatch'));
+        return;
+      }
     }
 
     if (!isLoginMode && !validateDomain(email)) {
@@ -69,16 +121,24 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
         const res = await fetch(`${API_URL}/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
+          body: JSON.stringify({ email, password, captcha_token: captchaId, captcha_answer: captchaAnswer })
         });
 
         const data = await res.json();
         if (!res.ok) throw new Error(data.message || 'Login failed.');
 
+        // Check if OTP verification is required
+        if (data.require_otp) {
+          setLoginOtpSent(true);
+          setError(null);
+          return;
+        }
+
         handleLogin(data.token, data.user);
+        refreshCaptcha(); // Refresh CAPTCHA after successful login
       } else {
         // Registration API Call
-        const regBody = { name, email, password, complainant_type: complainantType, phone };
+        const regBody = { name, email, password, complainant_type: complainantType, phone, captcha_token: captchaId, captcha_answer: captchaAnswer };
         if (complainantType === 'student') {
           regBody.department = department;
           regBody.batch = batch;
@@ -94,6 +154,12 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
 
         const data = await res.json();
         if (!res.ok) throw new Error(data.message || 'Registration failed.');
+
+        if (data.require_otp) {
+          setOtpSent(true);
+          setError(null);
+          return;
+        }
 
         setSuccess(t('successAction') + ' Please sign in.');
         setIsLoginMode(true);
@@ -112,6 +178,93 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${API_URL}/auth/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'OTP verification failed.');
+
+      setSuccess(data.message);
+      setTimeout(() => setIsLoginMode(true), 2000);
+    } catch (err) {
+      setError(err.message || 'OTP verification failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setResendingOtp(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password: 'dummy', complainant_type: complainantType, captcha_token: 'test_captcha_token' })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSuccess('OTP resent. Please check your email.');
+      } else {
+        setError(data.message || 'Failed to resend OTP.');
+      }
+    } finally {
+      setResendingOtp(false);
+    }
+  };
+
+  const handleVerifyLoginOtp = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${API_URL}/auth/verify-login-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'OTP verification failed.');
+
+      handleLogin(data.token, data.user);
+    } catch (err) {
+      setError(err.message || 'OTP verification failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendLoginOtp = async () => {
+    setResendingOtp(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_URL}/auth/resend-login-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSuccess('OTP resent. Please check your email.');
+      } else {
+        setError(data.message || 'Failed to resend OTP.');
+      }
+    } finally {
+      setResendingOtp(false);
     }
   };
 
@@ -243,14 +396,18 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
                       required
                     >
                       <option value="">{language === 'en' ? 'Select Department' : 'विभाग चुनें'}</option>
+                      <option value="Animation Cinema">Animation Cinema</option>
                       <option value="Cinematography">Cinematography</option>
                       <option value="Direction & Screenplay Writing">Direction & Screenplay Writing</option>
                       <option value="Editing">Editing</option>
+                      <option value="Producing for Film & Television">Producing for Film & Television</option>
                       <option value="Sound Recording & Design">Sound Recording & Design</option>
-                      <option value="Animation & Visual Effects">Animation & Visual Effects</option>
-                      <option value="Producing">Producing</option>
-                      <option value="Film Studies">Film Studies</option>
-                      <option value="Acting">Acting</option>
+                      <option value="Cinematography for EDM">Cinematography for EDM</option>
+                      <option value="Direction & Producing for EDM">Direction & Producing for EDM</option>
+                      <option value="Editing for EDM">Editing for EDM</option>
+                      <option value="EDM Management">EDM Management</option>
+                      <option value="Sound for EDM">Sound for EDM</option>
+                      <option value="Writing for EDM">Writing for EDM</option>
                     </select>
                   </div>
 
@@ -369,8 +526,58 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
                   onChange={(e) => setPhone(e.target.value)}
                 />
               </div>
+
+              {/* Password Requirements */}
+              {!isLoginMode && (
+                <div style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: '1rem' }}>
+                  <p style={{ margin: '0 0 0.25rem 0', fontWeight: 600 }}>{t('passwordRequirements')}:</p>
+                  <ul style={{ margin: '0', paddingLeft: '1.2rem' }}>
+                    <li style={{ marginBottom: '0.25rem' }}>8+ characters</li>
+                    <li style={{ marginBottom: '0.25rem' }}>Uppercase letter (A-Z)</li>
+                    <li style={{ marginBottom: '0.25rem' }}>Lowercase letter (a-z)</li>
+                    <li style={{ marginBottom: '0.25rem' }}>Number (0-9)</li>
+                    <li>Special character (!@#$%^&*(),.?":{}|&lt;&gt;)</li>
+                  </ul>
+                </div>
+              )}
             </>
           )}
+
+          {/* Password Errors */}
+          {passwordErrors.length > 0 && (
+            <div className="alert-banner error" role="alert">
+              <span style={{ fontSize: '0.85rem' }}>
+                {passwordErrors.map((err, i) => (
+                  <div key={i}>{err}</div>
+                ))}
+              </span>
+            </div>
+          )}
+
+          {/* Simple Math CAPTCHA */}
+          <div className="form-group" style={{ marginBottom: '1rem' }}>
+            <label className="form-label" htmlFor="captcha-answer">{t('captchaLabel')} *</label>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem' }}>
+              <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>{captchaQuestion}</span>
+              <button
+                type="button"
+                onClick={refreshCaptcha}
+                style={{ background: 'var(--secondary)', border: '1px solid var(--border)', padding: '0.25rem 0.5rem', borderRadius: '4px', cursor: 'pointer' }}
+                title="Refresh"
+              >
+                ↻
+              </button>
+            </div>
+            <input
+              type="text"
+              id="captcha-answer"
+              className="form-control"
+              value={captchaAnswer}
+              onChange={(e) => setCaptchaAnswer(e.target.value)}
+              placeholder="Enter answer"
+              required
+            />
+          </div>
 
           <button
             type="submit"
@@ -383,7 +590,7 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
         </form>
 
         {/* Forgot Password Link */}
-        {isLoginMode && (
+        {isLoginMode && !loginOtpSent && (
           <div style={{ marginTop: '1rem', textAlign: 'center' }}>
             <button
               className="btn btn-secondary"
@@ -395,32 +602,124 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
           </div>
         )}
 
+        {/* Login OTP Verification Section */}
+        {loginOtpSent && (
+          <div style={{ marginTop: '1rem' }}>
+            <div className="card" style={{ padding: '1.5rem' }}>
+              <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>{t('loginOtpTitle')}</h3>
+              <p style={{ fontSize: '0.9rem', color: '#6b7280', marginBottom: '1rem' }}>
+                {t('loginOtpMsg')}
+              </p>
+              <form onSubmit={handleVerifyLoginOtp}>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="login-otp-code">{t('fieldOtpCode')} *</label>
+                  <input
+                    type="text"
+                    id="login-otp-code"
+                    className="form-control"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    maxLength="6"
+                    placeholder="------"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ width: '100%', marginTop: '0.5rem' }}
+                  disabled={loading}
+                >
+                  {loading ? t('loading') : t('verifyOtpBtn')}
+                </button>
+              </form>
+              <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                <button
+                  className="btn btn-secondary"
+                  style={{ border: 'none', background: 'none', padding: '0', color: 'var(--primary)', textDecoration: 'underline', fontWeight: 600, fontSize: '0.85rem' }}
+                  onClick={handleResendLoginOtp}
+                  disabled={resendingOtp}
+                >
+                  {resendingOtp ? t('resendingOtp') : t('resendOtpBtn')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* OTP Verification Section (Registration) */}
+        {otpSent && (
+          <div style={{ marginTop: '1rem' }}>
+            <div className="card" style={{ padding: '1.5rem' }}>
+              <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>{t('verifyOtpTitle')}</h3>
+              <p style={{ fontSize: '0.9rem', color: '#6b7280', marginBottom: '1rem' }}>
+                {t('verifyOtpMsg')}
+              </p>
+              <form onSubmit={handleVerifyOtp}>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="otp-code">{t('fieldOtpCode')} *</label>
+                  <input
+                    type="text"
+                    id="otp-code"
+                    className="form-control"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    maxLength="6"
+                    placeholder="------"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ width: '100%', marginTop: '0.5rem' }}
+                  disabled={loading}
+                >
+                  {loading ? t('loading') : t('verifyOtpBtn')}
+                </button>
+              </form>
+              <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                <button
+                  className="btn btn-secondary"
+                  style={{ border: 'none', background: 'none', padding: '0', color: 'var(--primary)', textDecoration: 'underline', fontWeight: 600, fontSize: '0.85rem' }}
+                  onClick={handleResendOtp}
+                  disabled={resendingOtp}
+                >
+                  {resendingOtp ? t('resendingOtp') : t('resendOtpBtn')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Registration Link */}
-        <div style={{ marginTop: '1rem', textAlign: 'center', fontSize: '0.9rem' }}>
-          {isLoginMode ? (
-            <p>
-              {t('noAccountText')}{' '}
-              <button
-                className="btn btn-secondary"
-                style={{ border: 'none', background: 'none', padding: '0', color: 'var(--primary)', textDecoration: 'underline', fontWeight: 700 }}
-                onClick={() => { setIsLoginMode(false); setError(null); setEmailExists(false); }}
-              >
-                {t('registerBtn')}
-              </button>
-            </p>
-          ) : (
-            <p>
-              {t('hasAccountText')}{' '}
-              <button
-                className="btn btn-secondary"
-                style={{ border: 'none', background: 'none', padding: '0', color: 'var(--primary)', textDecoration: 'underline', fontWeight: 700 }}
-                onClick={() => { setIsLoginMode(true); setError(null); }}
-              >
-                {t('loginBtn')}
-              </button>
-            </p>
-          )}
-        </div>
+        {!otpSent && !loginOtpSent && (
+          <div style={{ marginTop: '1rem', textAlign: 'center', fontSize: '0.9rem' }}>
+            {isLoginMode ? (
+              <p>
+                {t('noAccountText')}{' '}
+                <button
+                  className="btn btn-secondary"
+                  style={{ border: 'none', background: 'none', padding: '0', color: 'var(--primary)', textDecoration: 'underline', fontWeight: 700 }}
+                  onClick={() => { setIsLoginMode(false); setError(null); setEmailExists(false); }}
+                >
+                  {t('registerBtn')}
+                </button>
+              </p>
+            ) : (
+              <p>
+                {t('hasAccountText')}{' '}
+                <button
+                  className="btn btn-secondary"
+                  style={{ border: 'none', background: 'none', padding: '0', color: 'var(--primary)', textDecoration: 'underline', fontWeight: 700 }}
+                  onClick={() => { setIsLoginMode(true); setError(null); }}
+                >
+                  {t('loginBtn')}
+                </button>
+              </p>
+            )}
+          </div>
+        )}
 
       </div>
     </div>

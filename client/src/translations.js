@@ -76,6 +76,16 @@ export const translations = {
     emailExistsMsg: "An account with this email is already registered. Please login below, or use Forgot Password to recover your account.",
     emailExistsLoginBtn: "Go to Login",
     emailExistsForgotBtn: "Forgot Password?",
+    passwordRequirements: "Password must contain",
+    verifyOtpTitle: "Email Verification Required",
+    verifyOtpMsg: "We've sent a 6-digit OTP to your email. Please enter it to verify your account.",
+    fieldOtpCode: "OTP Code",
+    verifyOtpBtn: "Verify Email",
+    resendOtpBtn: "Resend OTP",
+    resendOtp: "Resending...",
+    loginOtpTitle: "Email Verification Required",
+    loginOtpMsg: "Please verify your email before logging in. An OTP has been sent to your registered email address.",
+    captchaLabel: "CAPTCHA: Solve the math problem",
     
     // Complainant Dashboard
     dashWelcome: "Welcome back,",
@@ -233,6 +243,16 @@ export const translations = {
     emailExistsMsg: "इस ईमेल से पहले से एक खाता पंजीकृत है। कृपया नीचे लॉगिन करें, या अपना खाता रिकवर करने के लिए 'पासवर्ड भूल गए?' का उपयोग करें।",
     emailExistsLoginBtn: "लॉगिन पर जाएं",
     emailExistsForgotBtn: "पासवर्ड भूल गए?",
+    passwordRequirements: "पासवर्ड में शामिल करें",
+    verifyOtpTitle: "ईमेल सत्यापन आवश्यक",
+    verifyOtpMsg: "हमने आपके ईमेल पर एक 6-अंकीय OTP भेजा है। कृपया अपने खाते को सत्यापित करने के लिए इसे दर्ज करें।",
+    fieldOtpCode: "OTP कोड",
+    verifyOtpBtn: "ईमेल सत्यापित करें",
+    resendOtpBtn: "फिर से भेजें",
+    resendOtp: "भेजा जा रहा है...",
+    loginOtpTitle: "ईमेल सत्यापन आवश्यक",
+    loginOtpMsg: "कृपया अपने ईमेल को लॉगिन करने से पहले सत्यापित करें। हमने आपके पंजीकृत ईमेल पर एक OTP भेजा है।",
+    captchaLabel: "कैप्चा: गणित समस्या हल करें",
     
     // Complainant Dashboard
     dashWelcome: "आपका स्वागत है,",

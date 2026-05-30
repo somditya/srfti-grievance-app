@@ -1,6 +1,7 @@
 // Semantic, accessible header component with multi-language and WCAG controls
 
 import React from 'react';
+import logo from '../assets/SRFTI_Logo_DTBU.jpg';
 
 function Header({ 
   language, 
@@ -27,11 +28,11 @@ function Header({
           aria-label={t('portalTitle')}
         >
           {/* Typographic and aesthetic SVG emblem for SRFTI */}
-          <svg width="45" height="45" viewBox="0 0 100 100" aria-hidden="true">
-            <circle cx="50" cy="50" r="48" fill="#1e1b18" stroke="#D4AF37" strokeWidth="4" />
-            <path d="M30 40 C 30 25, 70 25, 70 40 C 70 55, 30 55, 30 70 C 30 85, 70 85, 70 70" fill="none" stroke="#9E1B32" strokeWidth="10" strokeLinecap="round" />
-            <line x1="50" y1="20" x2="50" y2="80" stroke="#D4AF37" strokeWidth="4" strokeDasharray="5,5" />
-          </svg>
+          <img
+            src={logo}
+            alt="SRFTI Logo"
+            style={{ height: '45px', width: 'auto' }}
+          />
           <div>
             <h1 style={{ fontSize: '1.4rem', fontWeight: 800, letterSpacing: '0.5px' }}>{t('portalTitle')}</h1>
             <p style={{ fontSize: '0.8rem', color: '#D4AF37', fontWeight: 600, letterSpacing: '1px' }}>{t('portalSubtitle')}</p>

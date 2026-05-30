@@ -9,6 +9,18 @@ function ResetPassword({ t, setCurrentView, language }) {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [passwordErrors, setPasswordErrors] = useState([]);
+
+  // Password validation function
+  const validatePasswordFrontend = (passwordVal) => {
+    const errors = [];
+    if (passwordVal.length < 8) errors.push('At least 8 characters');
+    if (!/[A-Z]/.test(passwordVal)) errors.push('one uppercase letter');
+    if (!/[a-z]/.test(passwordVal)) errors.push('one lowercase letter');
+    if (!/[0-9]/.test(passwordVal)) errors.push('one number');
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(passwordVal)) errors.push('one special character');
+    return errors;
+  };
 
   // Extract token from URL hash (e.g., /#/reset-password?token=xxx)
   const getHashToken = () => {
@@ -20,6 +32,7 @@ function ResetPassword({ t, setCurrentView, language }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+    setPasswordErrors([]);
     setSuccess(null);
 
     const token = getHashToken();
@@ -39,8 +52,10 @@ function ResetPassword({ t, setCurrentView, language }) {
       return;
     }
 
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters long.');
+    // Strict password validation
+    const errors = validatePasswordFrontend(newPassword);
+    if (errors.length > 0) {
+      setPasswordErrors(errors);
       return;
     }
 
@@ -118,6 +133,29 @@ function ResetPassword({ t, setCurrentView, language }) {
                 required
               />
             </div>
+
+            {/* Password Requirements */}
+            <div style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: '1rem' }}>
+              <p style={{ margin: '0 0 0.25rem 0', fontWeight: 600 }}>{t('passwordRequirements')}:</p>
+              <ul style={{ margin: '0', paddingLeft: '1.2rem' }}>
+                <li style={{ marginBottom: '0.25rem' }}>8+ characters</li>
+                <li style={{ marginBottom: '0.25rem' }}>Uppercase letter (A-Z)</li>
+                <li style={{ marginBottom: '0.25rem' }}>Lowercase letter (a-z)</li>
+                <li style={{ marginBottom: '0.25rem' }}>Number (0-9)</li>
+                <li>Special character (!@#$%^&*(),.?":{}|&lt;&gt;)</li>
+              </ul>
+            </div>
+
+            {/* Password Errors */}
+            {passwordErrors.length > 0 && (
+              <div className="alert-banner error" role="alert">
+                <span style={{ fontSize: '0.85rem' }}>
+                  {passwordErrors.map((err, i) => (
+                    <div key={i}>{err}</div>
+                  ))}
+                </span>
+              </div>
+            )}
 
             <div className="form-group">
               <label className="form-label" htmlFor="reset-confirm">{t('resetPasswordConfirmLabel')} *</label>

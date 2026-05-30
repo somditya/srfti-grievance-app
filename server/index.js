@@ -8,6 +8,62 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+
+// CAPTCHA configuration - using simple math-based CAPTCHA (no external service required)
+const CAPTCHA_REQUIRED = process.env.CAPTCHA_REQUIRED !== 'false';
+
+// In-memory OTP store (in production, use Redis or database)
+const otpStore = new Map();
+
+// In-memory rate limiting store (in production, use Redis)
+const rateLimitStore = new Map();
+
+// In-memory CAPTCHA store
+const captchaStore = new Map();
+
+// Simple math-based CAPTCHA generation
+function generateCaptcha() {
+  const num1 = Math.floor(Math.random() * 10) + 1;
+  const num2 = Math.floor(Math.random() * 10) + 1;
+  const operator = Math.random() < 0.5 ? '+' : '-';
+  const answer = operator === '+' ? num1 + num2 : num1 - num2;
+  const id = crypto.randomBytes(8).toString('hex');
+  const question = `${num1} ${operator} ${num2} = ?`;
+  captchaStore.set(id, { question, answer, expiresAt: Date.now() + 5 * 60 * 1000 }); // 5 min expiry
+  return { id, question };
+}
+
+// Rate limiting helper
+function checkRateLimit(ip, maxAttempts = 5, windowMs = 15 * 60 * 1000) {
+  const key = `${ip}-captcha`;
+  const now = Date.now();
+  const attempts = rateLimitStore.get(key) || { count: 0, resetTime: now + windowMs };
+
+  if (now > attempts.resetTime) {
+    rateLimitStore.set(key, { count: 1, resetTime: now + windowMs });
+    return { allowed: true };
+  }
+
+  if (attempts.count >= maxAttempts) {
+    return { allowed: false, retryAfter: Math.ceil((attempts.resetTime - now) / 1000) };
+  }
+
+  attempts.count++;
+  rateLimitStore.set(key, attempts);
+  return { allowed: true };
+}
+
+// Password validation function
+function validatePassword(password) {
+  const errors = [];
+  if (password.length < 8) errors.push('Password must be at least 8 characters long.');
+  if (!/[A-Z]/.test(password)) errors.push('Password must contain at least one uppercase letter.');
+  if (!/[a-z]/.test(password)) errors.push('Password must contain at least one lowercase letter.');
+  if (!/[0-9]/.test(password)) errors.push('Password must contain at least one number.');
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) errors.push('Password must contain at least one special character.');
+  return errors;
+}
 
 
 const db = require('./db');
@@ -94,6 +150,10 @@ async function sendNotification({ action, grievance, remarks, actingUser }) {
         await email.notifyFinalRuling(grievanceData, complainant, appellateOfficer, remarks);
         break;
       }
+      case 'convene_hearing': {
+        await email.notifyHearingConvened(grievanceData, complainant, remarks);
+        break;
+      }
       case 'resolve_accepted':
         await email.notifyResolutionAccepted(grievanceData, complainant, nodalOfficer);
         break;
@@ -125,11 +185,38 @@ app.get('/api/appellate', async (req, res) => {
 });
 
 // --- AUTH ROUTERS ---
-app.post('/api/auth/register', async (req, res) => {
-  const { name, email, password, complainant_type, phone, department, batch, gender, category, registration_no } = req.body;
+// Get CAPTCHA question
+app.get('/api/auth/captcha', (req, res) => {
+  const { id, question } = generateCaptcha();
+  res.json({ id, question });
+});
 
-  if (!name || !email || !password || !complainant_type) {
+app.post('/api/auth/register', async (req, res) => {
+  const { name, email: userEmail, password, complainant_type, phone, department, batch, gender, category, registration_no, captcha_token, captcha_answer } = req.body;
+
+  if (!name || !userEmail || !password || !complainant_type) {
     return res.status(400).json({ message: 'Please fill all required fields.' });
+  }
+
+  // CAPTCHA verification (simple math-based)
+  if (CAPTCHA_REQUIRED) {
+    const clientIp = req.ip || req.connection.remoteAddress;
+    const rateLimit = checkRateLimit(clientIp);
+    if (!rateLimit.allowed) {
+      return res.status(429).json({ message: `Too many attempts. Please try again in ${rateLimit.retryAfter} seconds.` });
+    }
+
+    if (!captcha_token || !captcha_answer) {
+      return res.status(400).json({ message: 'CAPTCHA verification is required.' });
+    }
+
+    const storedCaptcha = captchaStore.get(captcha_token);
+    if (!storedCaptcha || storedCaptcha.answer !== parseInt(captcha_answer) || Date.now() > storedCaptcha.expiresAt) {
+      return res.status(400).json({ message: 'Invalid or expired CAPTCHA answer.' });
+    }
+
+    // Clean up used captcha
+    captchaStore.delete(captcha_token);
   }
 
   // Student-specific mandatory fields
@@ -141,90 +228,261 @@ app.post('/api/auth/register', async (req, res) => {
 
   // Strict official domain validation
   const domainRegex = /^[a-zA-Z0-9._%+-]+@([a-zA-Z0-9.-]*\.)?srfti\.ac\.in$/;
-  if (!domainRegex.test(email)) {
+  if (!domainRegex.test(userEmail)) {
     return res.status(400).json({ message: 'Registration is restricted to official email addresses (@srfti.ac.in) only.' });
+  }
+
+  // Strict password validation
+  const passwordErrors = validatePassword(password);
+  if (passwordErrors.length > 0) {
+    return res.status(400).json({ message: passwordErrors.join(' ') });
   }
 
   try {
     // Check if user already exists
-    const existing = await db.query('SELECT id FROM users WHERE email = ?', [email]);
+    const existing = await db.query('SELECT id FROM users WHERE email = ?', [userEmail]);
     if (existing.length > 0) {
       return res.status(400).json({ message: 'User with this email is already registered.' });
     }
+
+    // Generate OTP for email verification
+    const otp = crypto.randomInt(100000, 999999).toString();
+    otpStore.set(userEmail, { otp, expiresAt: Date.now() + 10 * 60 * 1000 }); // 10 min expiry
 
     // Hash password
     const salt = await bcrypt.genSalt(10);
     const hash = await bcrypt.hash(password, salt);
 
-    // Insert Complainant
+    // Insert Complainant with email_verified = false
     const isStudent = complainant_type === 'student';
     const result = await db.query(
-      'INSERT INTO users (name, email, password_hash, role, complainant_type, phone, department, batch, gender, category, registration_no) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [name, email, hash, 'complainant', complainant_type, phone || null,
+      'INSERT INTO users (name, email, password_hash, role, complainant_type, phone, department, batch, gender, category, registration_no, email_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, userEmail, hash, 'complainant', complainant_type, phone || null,
        isStudent ? department : null,
        isStudent ? batch : null,
        isStudent ? gender : null,
        isStudent ? category : null,
-       isStudent ? registration_no : null]
+       isStudent ? registration_no : null,
+       false]
     );
 
-    // Send registration confirmation email (non-blocking)
-    email.sendEmail({
-      to: email,
-      subject: 'Welcome to SRFTI Grievance Portal — Registration Successful',
+    // Send OTP email for verification
+    await email.sendEmail({
+      to: userEmail,
+      subject: 'SRFTI Grievance Portal — Email Verification Required',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #1e40af;">Registration Confirmed</h2>
+          <h2 style="color: #1e40af;">Email Verification Required</h2>
           <p>Dear <strong>${name}</strong>,</p>
-          <p>Your account has been successfully created on the SRFTI Grievance Redressal Portal.</p>
-          <table style="border-collapse: collapse; width: 100%; margin: 1rem 0;">
-            <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Email</td><td style="padding: 8px; border: 1px solid #ddd;">${email}</td></tr>
-            <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Sector</td><td style="padding: 8px; border: 1px solid #ddd;">${complainant_type.charAt(0).toUpperCase() + complainant_type.slice(1)}</td></tr>
-            ${isStudent ? `
-            <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Department</td><td style="padding: 8px; border: 1px solid #ddd;">${department}</td></tr>
-            <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Batch</td><td style="padding: 8px; border: 1px solid #ddd;">${batch}</td></tr>
-            <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Registration No.</td><td style="padding: 8px; border: 1px solid #ddd;">${registration_no}</td></tr>
-            ` : ''}
-          </table>
-          <p>You can now log in to file and track grievances. You will receive email notifications for all updates.</p>
+          <p>Please verify your email address to complete registration. Use the OTP below:</p>
+          <div style="background: #f3f4f6; padding: 1.5rem; text-align: center; font-size: 2rem; font-weight: bold; letter-spacing: 0.5rem; margin: 1rem 0;">${otp}</div>
+          <p>This OTP expires in 10 minutes.</p>
           <p style="color: #666; font-size: 0.85rem;">SRFTI Grievance Redressal Portal<br/>agent@ailab.srfti.ac.in</p>
         </div>
       `,
-      text: `Welcome to SRFTI Grievance Portal. Your registration as ${complainant_type} is confirmed. You will receive email updates for all grievance activities.`,
-    }).catch(err => console.error('[Email] Registration confirmation failed:', err.message));
+      text: `Your SRFTI Grievance Portal registration OTP: ${otp} (valid for 10 minutes)`,
+    }).catch(err => console.error('[Email] OTP send failed:', err.message));
 
-    res.status(201).json({ message: 'Registration successful. Please log in.' });
+    res.status(201).json({ message: 'Registration successful. Please verify your email with the OTP sent.', require_otp: true, email: userEmail });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Verify OTP endpoint
+app.post('/api/auth/verify-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) {
+    return res.status(400).json({ message: 'Email and OTP are required.' });
+  }
+
+  const stored = otpStore.get(email);
+  if (!stored || stored.expiresAt < Date.now()) {
+    return res.status(400).json({ message: 'OTP has expired. Please register again.' });
+  }
+
+  if (stored.otp !== otp) {
+    return res.status(400).json({ message: 'Invalid OTP.' });
+  }
+
+  // Mark user as verified
+  try {
+    await db.query('UPDATE users SET email_verified = true WHERE email = ?', [email]);
+    otpStore.delete(email);
+    res.json({ message: 'Email verified successfully. You can now log in.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Verify login OTP endpoint
+app.post('/api/auth/verify-login-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) {
+    return res.status(400).json({ message: 'Email and OTP are required.' });
+  }
+
+  const stored = otpStore.get(email);
+  if (!stored || stored.expiresAt < Date.now()) {
+    return res.status(400).json({ message: 'OTP has expired. Please request a new one.' });
+  }
+
+  if (stored.otp !== otp) {
+    return res.status(400).json({ message: 'Invalid OTP.' });
+  }
+
+  try {
+    const users = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+    if (users.length === 0) {
+      return res.status(400).json({ message: 'User not found.' });
+    }
+
+    const user = users[0];
+
+    const token = jwt.sign(
+      { id: user.id, name: user.name, email: user.email, role: user.role, complainant_type: user.complainant_type },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    otpStore.delete(email);
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        complainant_type: user.complainant_type,
+        phone: user.phone
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Resend OTP for login verification
+app.post('/api/auth/resend-login-otp', async (req, res) => {
+  const { email: loginEmail } = req.body;
+  if (!loginEmail) {
+    return res.status(400).json({ message: 'Email is required.' });
+  }
+
+  try {
+    const users = await db.query('SELECT id, name, password_hash FROM users WHERE email = ?', [loginEmail]);
+    if (users.length === 0) {
+      return res.json({ message: 'If an account with that email exists, an OTP has been sent.' });
+    }
+
+    const user = users[0];
+    const otp = crypto.randomInt(100000, 999999).toString();
+    otpStore.set(loginEmail, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
+
+    await email.sendEmail({
+      to: loginEmail,
+      subject: 'SRFTI Grievance Portal — Login Verification OTP',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #1e40af;">Login Verification</h2>
+          <p>Dear <strong>${user.name}</strong>,</p>
+          <p>Please use the following OTP to complete your login:</p>
+          <div style="background: #f3f4f6; padding: 1.5rem; text-align: center; font-size: 2rem; font-weight: bold; letter-spacing: 0.5rem; margin: 1rem 0;">${otp}</div>
+          <p>This OTP expires in 10 minutes.</p>
+          <p style="color: #666; font-size: 0.85rem;">SRFTI Grievance Redressal Portal<br/>agent@ailab.srfti.ac.in</p>
+        </div>
+      `,
+      text: `Your SRFTI Grievance Portal login verification OTP: ${otp} (valid for 10 minutes)`,
+    }).catch(err => console.error('[Email] Login OTP send failed:', err.message));
+
+    res.json({ message: 'If an account with that email exists, an OTP has been sent.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 app.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body;
-  
-  if (!email || !password) {
+  const { email: loginEmail, password, captcha_token, captcha_answer } = req.body;
+
+  if (!loginEmail || !password) {
     return res.status(400).json({ message: 'Please enter email and password.' });
   }
-  
+
+  // CAPTCHA verification (simple math-based)
+  if (CAPTCHA_REQUIRED) {
+    const clientIp = req.ip || req.connection.remoteAddress;
+    const rateLimit = checkRateLimit(clientIp);
+    if (!rateLimit.allowed) {
+      return res.status(429).json({ message: `Too many attempts. Please try again in ${rateLimit.retryAfter} seconds.` });
+    }
+
+    if (!captcha_token || !captcha_answer) {
+      return res.status(400).json({ message: 'CAPTCHA verification is required.' });
+    }
+
+    const storedCaptcha = captchaStore.get(captcha_token);
+    if (!storedCaptcha || storedCaptcha.answer !== parseInt(captcha_answer) || Date.now() > storedCaptcha.expiresAt) {
+      return res.status(400).json({ message: 'Invalid or expired CAPTCHA answer.' });
+    }
+
+    // Clean up used captcha
+    captchaStore.delete(captcha_token);
+  }
+
   try {
-    const users = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+    const users = await db.query('SELECT * FROM users WHERE email = ?', [loginEmail]);
     if (users.length === 0) {
       return res.status(400).json({ message: 'Invalid credentials. User not found.' });
     }
-    
+
     const user = users[0];
+
+    // Check if email is verified - if not, verify password and return require_otp
+    if (!user.email_verified) {
+      const isMatch = await bcrypt.compare(password, user.password_hash);
+      if (!isMatch) {
+        return res.status(400).json({ message: 'Invalid credentials. Incorrect password.' });
+      }
+      // Password is correct but email not verified - send OTP flow
+      const otp = crypto.randomInt(100000, 999999).toString();
+      otpStore.set(loginEmail, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
+
+      // Send OTP email
+      await email.sendEmail({
+        to: loginEmail,
+        subject: 'SRFTI Grievance Portal — Login Verification OTP',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #1e40af;">Login Verification</h2>
+            <p>Dear <strong>${user.name}</strong>,</p>
+            <p>Please use the following OTP to complete your login:</p>
+            <div style="background: #f3f4f6; padding: 1.5rem; text-align: center; font-size: 2rem; font-weight: bold; letter-spacing: 0.5rem; margin: 1rem 0;">${otp}</div>
+            <p>This OTP expires in 10 minutes.</p>
+            <p style="color: #666; font-size: 0.85rem;">SRFTI Grievance Redressal Portal<br/>agent@ailab.srfti.ac.in</p>
+          </div>
+        `,
+        text: `Your SRFTI Grievance Portal login verification OTP: ${otp} (valid for 10 minutes)`,
+      }).catch(err => console.error('[Email] Login OTP send failed:', err.message));
+
+      return res.status(200).json({
+        require_otp: true,
+        message: 'Please verify your email before logging in. An OTP has been sent to your registered email.',
+        email: loginEmail
+      });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid credentials. Incorrect password.' });
     }
-    
+
     // Generate JWT
     const token = jwt.sign(
       { id: user.id, name: user.name, email: user.email, role: user.role, complainant_type: user.complainant_type },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
-    
+
     res.json({
       token,
       user: {
@@ -296,8 +554,10 @@ app.post('/api/auth/reset-password', async (req, res) => {
     return res.status(400).json({ message: 'Token and new password are required.' });
   }
 
-  if (newPassword.length < 6) {
-    return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
+  // Strict password validation
+  const passwordErrors = validatePassword(newPassword);
+  if (passwordErrors.length > 0) {
+    return res.status(400).json({ message: passwordErrors.join(' ') });
   }
 
   try {
@@ -316,6 +576,9 @@ app.post('/api/auth/reset-password', async (req, res) => {
     const hash = await bcrypt.hash(newPassword, salt);
 
     await db.query('UPDATE users SET password_hash = ? WHERE id = ?', [hash, decoded.id]);
+
+    // Mark email as verified after password reset (since email was verified to receive reset link)
+    await db.query('UPDATE users SET email_verified = true WHERE id = ?', [decoded.id]);
 
     res.json({ message: 'Password reset successfully. Please log in with your new password.' });
   } catch (err) {
@@ -556,6 +819,13 @@ app.post('/api/grievances/:id/action', authenticateToken, upload.single('resolut
       newStatus = 'escalated';
       updateFields.push('status = ?');
       updateParams.push('escalated');
+    } else if (action === 'convene_hearing' && (user.role === 'appellate_authority' || user.role === 'admin')) {
+      newStatus = 'hearing_convened';
+      updateFields.push('status = ?');
+      updateParams.push('hearing_convened');
+    } else if (action === 'intermediate_reply' && (user.role === 'appellate_authority' || user.role === 'admin')) {
+      // Non-committal update: keep status as hearing_convened
+      newStatus = grievance.status;
     } else if (action === 'finalize' && (user.role === 'appellate_authority' || user.role === 'admin')) {
       newStatus = 'resolved';
       updateFields.push('status = ?', 'resolved_at = NOW()');
@@ -607,39 +877,39 @@ app.get('/api/admin/users', authenticateToken, async (req, res) => {
 // Create/Update administrative users (Nodal Officers, Appellate Authorities)
 app.post('/api/admin/users', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden.' });
-  const { name, email, password, role, complainant_type, phone, appellate_title } = req.body;
+  const { name, email: adminEmail, password, role, complainant_type, phone, appellate_title } = req.body;
   
-  if (!name || !email || !role || !complainant_type) {
+  if (!name || !adminEmail || !role || !complainant_type) {
     return res.status(400).json({ message: 'Name, email, role, and complainant type/sector are required.' });
   }
-  
+
   try {
     const salt = await bcrypt.genSalt(10);
     const hash = password ? await bcrypt.hash(password, salt) : '$2a$10$tZ20bZz98p/eK.K7jUf2FuyXF41F5uT5kG70D.f/M38R7hK0oW0e.'; // default hash of admin123
-    
+
     // Check if user already exists
-    const existing = await db.query('SELECT id FROM users WHERE email = ?', [email]);
+    const existing = await db.query('SELECT id FROM users WHERE email = ?', [adminEmail]);
     if (existing.length > 0) {
       // Update existing
       if (password) {
         await db.query(
           'UPDATE users SET name = ?, role = ?, complainant_type = ?, phone = ?, password_hash = ? WHERE email = ?',
-          [name, role, complainant_type, phone || null, hash, email]
+          [name, role, complainant_type, phone || null, hash, adminEmail]
         );
       } else {
         await db.query(
           'UPDATE users SET name = ?, role = ?, complainant_type = ?, phone = ? WHERE email = ?',
-          [name, role, complainant_type, phone || null, email]
+          [name, role, complainant_type, phone || null, adminEmail]
         );
       }
     } else {
       // Create new
       await db.query(
         'INSERT INTO users (name, email, password_hash, role, complainant_type, phone) VALUES (?, ?, ?, ?, ?, ?)',
-        [name, email, hash, role, complainant_type, phone || null]
+        [name, adminEmail, hash, role, complainant_type, phone || null]
       );
     }
-    
+
     // If it's an appellate authority, sync with appellate_officers configuration table
     if (role === 'appellate_authority') {
       const existingAppellate = await db.query('SELECT id FROM appellate_officers WHERE complainant_type = ?', [complainant_type]);
@@ -647,12 +917,12 @@ app.post('/api/admin/users', authenticateToken, async (req, res) => {
       if (existingAppellate.length > 0) {
         await db.query(
           'UPDATE appellate_officers SET name = ?, title = ?, email = ? WHERE complainant_type = ?',
-          [name, title, email, complainant_type]
+          [name, title, adminEmail, complainant_type]
         );
       } else {
         await db.query(
           'INSERT INTO appellate_officers (complainant_type, name, title, email) VALUES (?, ?, ?, ?)',
-          [complainant_type, name, title, email]
+          [complainant_type, name, title, adminEmail]
         );
       }
     }
@@ -824,6 +1094,29 @@ async function startServer() {
     }
   } catch (err) {
     console.error('[Migration] case_id migration failed:', err.message);
+  }
+
+  // 1c. Migrate: ensure status enum includes nodal_resolved and hearing_convened
+  try {
+    const statusCol = await db.query("SHOW COLUMNS FROM grievances WHERE Field = 'status'");
+    const currentEnum = statusCol[0]?.Type || '';
+    if (!currentEnum.includes('hearing_convened')) {
+      await db.query("ALTER TABLE grievances MODIFY COLUMN status enum('pending','in_progress','nodal_resolved','resolved','escalated','hearing_convened') DEFAULT 'pending'");
+      console.log('[Migration] Updated status enum to include hearing_convened.');
+    }
+  } catch (err) {
+    console.error('[Migration] status enum migration failed:', err.message);
+  }
+
+  // 1d. Migrate: add email_verified column if missing
+  try {
+    const verifiedCol = await db.query("SHOW COLUMNS FROM users WHERE Field = 'email_verified'");
+    if (verifiedCol.length === 0) {
+      await db.query('ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT FALSE');
+      console.log('[Migration] Added email_verified column to users table.');
+    }
+  } catch (err) {
+    console.error('[Migration] email_verified migration failed:', err.message);
   }
 
   // 2. Auto-seed core roles if table is empty

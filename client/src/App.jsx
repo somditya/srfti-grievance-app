@@ -242,10 +242,11 @@ function App() {
             )}
             
             {currentUser.role === 'appellate_authority' && (
-              <AppellateDashboard 
-                t={t} 
-                currentUser={currentUser} 
+              <AppellateDashboard
+                t={t}
+                currentUser={currentUser}
                 authToken={authToken}
+                language={language}
               />
             )}
             
