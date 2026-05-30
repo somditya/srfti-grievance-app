@@ -501,10 +501,31 @@ app.post('/api/auth/login', async (req, res) => {
 
 // --- FORGOT PASSWORD ---
 app.post('/api/auth/forgot-password', async (req, res) => {
-  const { email: userEmail } = req.body;
+  const { email: userEmail, captcha_token, captcha_answer } = req.body;
 
   if (!userEmail) {
     return res.status(400).json({ message: 'Please provide an email address.' });
+  }
+
+  // CAPTCHA verification (simple math-based)
+  if (CAPTCHA_REQUIRED) {
+    const clientIp = req.ip || req.connection.remoteAddress;
+    const rateLimit = checkRateLimit(clientIp);
+    if (!rateLimit.allowed) {
+      return res.status(429).json({ message: `Too many attempts. Please try again in ${rateLimit.retryAfter} seconds.` });
+    }
+
+    if (!captcha_token || !captcha_answer) {
+      return res.status(400).json({ message: 'CAPTCHA verification is required.' });
+    }
+
+    const storedCaptcha = captchaStore.get(captcha_token);
+    if (!storedCaptcha || storedCaptcha.answer !== parseInt(captcha_answer) || Date.now() > storedCaptcha.expiresAt) {
+      return res.status(400).json({ message: 'Invalid or expired CAPTCHA answer.' });
+    }
+
+    // Clean up used captcha
+    captchaStore.delete(captcha_token);
   }
 
   try {

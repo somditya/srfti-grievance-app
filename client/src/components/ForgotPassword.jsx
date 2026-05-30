@@ -1,6 +1,6 @@
 // Forgot Password - sends reset link to registered email
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { API_URL } from '../App';
 
 function ForgotPassword({ t, setCurrentView, language }) {
@@ -8,6 +8,30 @@ function ForgotPassword({ t, setCurrentView, language }) {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [captchaId, setCaptchaId] = useState('');
+  const [captchaQuestion, setCaptchaQuestion] = useState('');
+  const [captchaAnswer, setCaptchaAnswer] = useState('');
+
+  // Load CAPTCHA on mount
+  useEffect(() => {
+    fetchCaptcha();
+  }, []);
+
+  const fetchCaptcha = async () => {
+    try {
+      const res = await fetch(`${API_URL}/auth/captcha`);
+      const data = await res.json();
+      setCaptchaId(data.id);
+      setCaptchaQuestion(data.question);
+    } catch (err) {
+      console.error('Failed to load CAPTCHA:', err);
+    }
+  };
+
+  const refreshCaptcha = () => {
+    setCaptchaAnswer('');
+    fetchCaptcha();
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -25,7 +49,7 @@ function ForgotPassword({ t, setCurrentView, language }) {
       const res = await fetch(`${API_URL}/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email, captcha_token: captchaId, captcha_answer: captchaAnswer })
       });
 
       const data = await res.json();
@@ -83,6 +107,31 @@ function ForgotPassword({ t, setCurrentView, language }) {
                 placeholder="email@srfti.ac.in"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+
+            {/* Simple Math CAPTCHA */}
+            <div className="form-group" style={{ marginBottom: '1rem' }}>
+              <label className="form-label" htmlFor="forgot-captcha-answer">{t('captchaLabel')} *</label>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>{captchaQuestion}</span>
+                <button
+                  type="button"
+                  onClick={refreshCaptcha}
+                  style={{ background: 'var(--secondary)', border: '1px solid var(--border)', padding: '0.25rem 0.5rem', borderRadius: '4px', cursor: 'pointer' }}
+                  title="Refresh"
+                >
+                  ↻
+                </button>
+              </div>
+              <input
+                type="text"
+                id="forgot-captcha-answer"
+                className="form-control"
+                value={captchaAnswer}
+                onChange={(e) => setCaptchaAnswer(e.target.value)}
+                placeholder="Enter answer"
                 required
               />
             </div>
