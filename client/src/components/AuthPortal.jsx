@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { API_URL } from '../App';
 
-function AuthPortal({ t, handleLogin, setCurrentView, language }) {
-  const [isLoginMode, setIsLoginMode] = useState(true);
+function AuthPortal({ t, handleLogin, setCurrentView, language, initialMode, onModeResolve }) {
+  const [isLoginMode, setIsLoginMode] = useState(initialMode === 'register' ? false : true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -34,6 +34,14 @@ function AuthPortal({ t, handleLogin, setCurrentView, language }) {
   const [captchaId, setCaptchaId] = useState('');
   const [captchaQuestion, setCaptchaQuestion] = useState('');
   const [captchaAnswer, setCaptchaAnswer] = useState('');
+
+  // Respond to initialMode prop changes (e.g. header login button forces login mode)
+  useEffect(() => {
+    if (initialMode) {
+      setIsLoginMode(initialMode === 'login');
+      if (onModeResolve) onModeResolve();
+    }
+  }, [initialMode]);
 
   // Load CAPTCHA on mount
   useEffect(() => {

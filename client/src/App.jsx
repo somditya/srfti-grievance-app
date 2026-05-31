@@ -43,6 +43,7 @@ function App() {
   });
   const [appellateConfigs, setAppellateConfigs] = useState([]);
   const [backendError, setBackendError] = useState(null);
+  const [forceAuthMode, setForceAuthMode] = useState(null);
 
   // Sync state variables with DOM & LocalStorage
   useEffect(() => {
@@ -173,6 +174,7 @@ function App() {
         handleLogout={handleLogout}
         t={t}
         setCurrentView={navigateTo}
+        onHeaderLogin={() => setForceAuthMode('login')}
       />
       
       <main id="main-content-anchor" className="main-content">
@@ -201,6 +203,8 @@ function App() {
             handleLogin={handleLogin}
             setCurrentView={navigateTo}
             language={language}
+            initialMode={forceAuthMode}
+            onModeResolve={() => setForceAuthMode(null)}
           />
         )}
 
@@ -265,7 +269,7 @@ function App() {
       
       <footer style={{ borderTop: '1px solid var(--border-color)', padding: '1.5rem', textAlign: 'center', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
         <p>© 2026 Satyajit Ray Film & Television Institute (SRFTI). All rights reserved. Accessibility and UGC Complaint.</p>
-        <p style={{ marginTop: '0.25rem', fontSize: '0.8rem' }}>Designed and maintained by Internal Quality Assurance Cell (IQAC).</p>
+        <p style={{ marginTop: '0.25rem', fontSize: '0.8rem' }}>{t('footerMaintainedBy')}</p>
       </footer>
     </div>
   );

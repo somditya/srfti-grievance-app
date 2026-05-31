@@ -13,7 +13,8 @@ function Header({
   currentUser,
   handleLogout,
   t,
-  setCurrentView
+  setCurrentView,
+  onHeaderLogin
 }) {
   return (
     <header className="portal-header" role="banner">
@@ -154,7 +155,7 @@ function Header({
                 <button
                   className="btn btn-accent"
                   style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}
-                  onClick={() => { setCurrentView('auth'); }}
+                  onClick={() => { if (onHeaderLogin) onHeaderLogin(); setCurrentView('auth'); }}
                 >
                   {t('login')}
                 </button>
