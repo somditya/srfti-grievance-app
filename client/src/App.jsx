@@ -42,6 +42,7 @@ function App() {
     staff_resolution_days: '30'
   });
   const [appellateConfigs, setAppellateConfigs] = useState([]);
+  const [sgrcMembers, setSgrcMembers] = useState([]);
   const [backendError, setBackendError] = useState(null);
   const [forceAuthMode, setForceAuthMode] = useState(null);
 
@@ -74,6 +75,12 @@ function App() {
         if (appellateRes.ok) {
           const appellateData = await appellateRes.json();
           setAppellateConfigs(appellateData);
+        }
+
+        const sgrcRes = await fetch(`${API_URL}/sgrc-members`);
+        if (sgrcRes.ok) {
+          const sgrcData = await sgrcRes.json();
+          setSgrcMembers(sgrcData);
         }
         setBackendError(null);
       } catch (err) {
@@ -194,6 +201,7 @@ function App() {
             systemSettings={systemSettings}
             appellateConfigs={appellateConfigs}
             language={language}
+            members={sgrcMembers}
           />
         )}
 

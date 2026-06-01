@@ -35,6 +35,9 @@ function AdminDashboard({
   const [officerPhone, setOfficerPhone] = useState("");
   const [appellateTitle, setAppellateTitle] = useState("");
 
+  // Officer editing state
+  const [editingOfficerId, setEditingOfficerId] = useState(null);
+
   // SGRC Members state
   const [sgrcMemberNameEn, setSgrcMemberNameEn] = useState("");
   const [sgrcMemberNameHi, setSgrcMemberNameHi] = useState("");
@@ -149,17 +152,17 @@ function AdminDashboard({
     }
   };
 
-  // Load SGRC members from members.json file
+  // Load SGRC members from database via API
   useEffect(() => {
     const loadSgrcMembers = async () => {
       try {
         const response = await fetch(`${API_URL}/sgrc-members`);
         if (response.ok) {
           const data = await response.json();
-          setSgrcMembers(data.members || []);
+          setSgrcMembers(data || []);
         }
       } catch (err) {
-        console.warn("[API] Failed to load SGRC members, using defaults");
+        console.warn("[API] Failed to load SGRC members:", err);
       }
     };
     loadSgrcMembers();
@@ -194,9 +197,9 @@ function AdminDashboard({
     setSgrcMemberRoleHi("");
     setEditingSgrcIndex(null);
 
-    // Save to members.json via API
+    // Save to database via API
     try {
-      await fetch(`${API_URL}/sgrc-members`, {
+      const res = await fetch(`${API_URL}/sgrc-members`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${authToken}`,
@@ -204,9 +207,15 @@ function AdminDashboard({
         },
         body: JSON.stringify({ members: updatedMembers }),
       });
+      if (res.ok) {
+        setSuccess("SGRC committee members saved successfully.");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || data.message || `Server error (${res.status})`);
+      }
     } catch (err) {
-      console.warn("[API] Could not save SGRC members, trying local storage");
-      localStorage.setItem("sgrc_members", JSON.stringify(updatedMembers));
+      console.error("[API] Could not save SGRC members:", err);
+      setError("Failed to save members: " + (err.message || "Unknown error"));
     }
   };
 
@@ -221,18 +230,28 @@ function AdminDashboard({
   };
 
   // Delete SGRC member
-  const handleDeleteSgrcMember = (index) => {
+  const handleDeleteSgrcMember = async (index) => {
     if (confirm("Remove this member from SGRC committee?")) {
       const updatedMembers = sgrcMembers.filter((_, i) => i !== index);
       setSgrcMembers(updatedMembers);
-      fetch(`${API_URL}/sgrc-members`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ members: updatedMembers }),
-      }).catch(() => localStorage.setItem("sgrc_members", JSON.stringify(updatedMembers)));
+      try {
+        const res = await fetch(`${API_URL}/sgrc-members`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ members: updatedMembers }),
+        });
+        if (res.ok) {
+          setSuccess("Member removed successfully.");
+        } else {
+          throw new Error("Server returned an error");
+        }
+      } catch (err) {
+        console.error("[API] Could not delete SGRC member:", err);
+        setError("Failed to delete member. Please try again.");
+      }
     }
   };
 
@@ -245,7 +264,7 @@ function AdminDashboard({
     setEditingSgrcIndex(null);
   };
 
-  // Register administrative officers
+  // Register / Update administrative officers
   const handleRegisterOfficer = async (e) => {
     e.preventDefault();
     setError(null);
@@ -266,6 +285,7 @@ function AdminDashboard({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          id: editingOfficerId,
           name: officerName,
           email: officerEmail,
           password: officerPassword || null,
@@ -277,41 +297,68 @@ function AdminDashboard({
       });
 
       if (res.ok) {
-        setSuccess("Officer database updated successfully.");
-        setOfficerName("");
-        setOfficerEmail("");
-        setOfficerPassword("");
-        setOfficerPhone("");
-        setAppellateTitle("");
+        setSuccess(editingOfficerId ? "Officer updated successfully." : "Officer added successfully.");
+        clearOfficerForm();
         fetchAdminData();
       } else {
-        throw new Error("Officer creation failed.");
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || data.message || `Server error (${res.status})`);
       }
     } catch (err) {
-      console.warn("[API Action] Simulated creation of administrative user.");
-
-      const newOff = {
-        id: officers.length + 201,
-        name: officerName,
-        email: officerEmail,
-        role: officerRole,
-        complainant_type: officerSector,
-        phone: officerPhone,
-        created_at: new Date().toISOString(),
-      };
-
-      setOfficers([newOff, ...officers]);
-      setSuccess(
-        "Officer database updated successfully (Simulated Local Mode).",
-      );
-      setOfficerName("");
-      setOfficerEmail("");
-      setOfficerPassword("");
-      setOfficerPhone("");
-      setAppellateTitle("");
+      console.error("[API] Could not save officer:", err);
+      setError("Failed to save officer: " + (err.message || "Unknown error"));
     } finally {
       setLoading(false);
     }
+  };
+
+  // Edit officer — populate form and set editing state
+  const handleEditOfficer = (officer) => {
+    setEditingOfficerId(officer.id);
+    setOfficerName(officer.name);
+    setOfficerEmail(officer.email);
+    setOfficerRole(officer.role);
+    setOfficerSector(officer.complainant_type);
+    setOfficerPhone(officer.phone || "");
+    setOfficerPassword("");
+    setAppellateTitle("");
+    setError(null);
+    setSuccess(null);
+  };
+
+  // Delete officer
+  const handleDeleteOfficer = async (id) => {
+    if (!confirm("Remove this officer from the system?")) return;
+
+    try {
+      const res = await fetch(`${API_URL}/admin/users/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+
+      if (res.ok) {
+        setSuccess("Officer deleted successfully.");
+        fetchAdminData();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || data.message || `Server error (${res.status})`);
+      }
+    } catch (err) {
+      console.error("[API] Could not delete officer:", err);
+      setError("Failed to delete officer: " + (err.message || "Unknown error"));
+    }
+  };
+
+  // Clear officer form
+  const clearOfficerForm = () => {
+    setOfficerName("");
+    setOfficerEmail("");
+    setOfficerPassword("");
+    setOfficerRole("nodal_officer");
+    setOfficerSector("student");
+    setOfficerPhone("");
+    setAppellateTitle("");
+    setEditingOfficerId(null);
   };
 
   return (
@@ -635,19 +682,28 @@ function AdminDashboard({
                             : "Registrar"
                         }
                         onChange={(e) => setAppellateTitle(e.target.value)}
-                        onChange={handleOfficerChange}
                       />
                     </div>
                   )}
 
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    style={{ marginTop: "1rem" }}
-                    disabled={loading}
-                  >
-                    {loading ? t("loading") : t("btnRegisterOfficer")}
-                  </button>
+                  <div style={{ display: "flex", gap: "0.75rem", marginTop: "1rem" }}>
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      disabled={loading}
+                    >
+                      {loading ? t("loading") : (editingOfficerId ? "Update Officer" : t("btnRegisterOfficer"))}
+                    </button>
+                    {editingOfficerId && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={clearOfficerForm}
+                      >
+                        Cancel Edit
+                      </button>
+                    )}
+                  </div>
                 </form>
               </section>
 
@@ -692,6 +748,7 @@ function AdminDashboard({
                         <th style={{ padding: "0.75rem" }}>
                           {t("tableHeaderPhone")}
                         </th>
+                        <th style={{ padding: "0.75rem" }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -725,6 +782,24 @@ function AdminDashboard({
                           </td>
                           <td style={{ padding: "0.75rem" }}>
                             {off.phone || "N/A"}
+                          </td>
+                          <td style={{ padding: "0.75rem" }}>
+                            <div style={{ display: "flex", gap: "0.5rem" }}>
+                              <button
+                                onClick={() => handleEditOfficer(off)}
+                                className="btn btn-secondary"
+                                style={{ padding: "0.3rem 0.6rem", fontSize: "0.82rem" }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteOfficer(off.id)}
+                                className="btn btn-danger"
+                                style={{ padding: "0.3rem 0.6rem", fontSize: "0.82rem" }}
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}

@@ -6,6 +6,7 @@ USE srfti_grievance;
 -- Drop tables in reverse order of dependencies to avoid constraint violations
 DROP TABLE IF EXISTS grievance_history;
 DROP TABLE IF EXISTS grievances;
+DROP TABLE IF EXISTS sgrc_members;
 DROP TABLE IF EXISTS system_settings;
 DROP TABLE IF EXISTS appellate_officers;
 DROP TABLE IF EXISTS users;
@@ -74,6 +75,17 @@ CREATE TABLE grievance_history (
   FOREIGN KEY (action_by) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- 6. SGRC Members Table (for landing page "Constitution of the SGRC" panel)
+CREATE TABLE sgrc_members (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name_en VARCHAR(255) NOT NULL,
+  name_hi VARCHAR(255) NOT NULL,
+  role_en VARCHAR(255) NOT NULL,
+  role_hi VARCHAR(255) NOT NULL,
+  sort_order INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- --- SEED DATA ---
 
 -- Seed Default Timelines
@@ -81,6 +93,15 @@ INSERT INTO system_settings (setting_key, setting_value) VALUES
 ('student_resolution_days', '22'),
 ('faculty_resolution_days', '15'),
 ('staff_resolution_days', '30');
+
+-- Seed Default SGRC Committee Members
+INSERT INTO sgrc_members (name_en, name_hi, role_en, role_hi, sort_order) VALUES
+('Prof. Sudeshna Lahiri', 'प्रो. सुदेशना लाहिड़ी', 'Chairperson', 'अध्यक्ष', 1),
+('Prof. Sanjit Dey', 'प्रो. संजीत डे', 'Member', 'सदस्य', 2),
+('Prof. Siddhartha Sankar Saha', 'प्रो. सिद्धार्थ शंकर साहा', 'Member', 'सदस्य', 3),
+('Prof. Sandip Mondal', 'प्रो. संदीप मंडल', 'Member', 'सदस्य', 4),
+('Prof. Diptendu Chatterjee', 'प्रो. दीप्तेंदु चटर्जी', 'Member', 'सदस्य', 5),
+('Student Nominee', 'छात्र नामिती', 'Invitee Member', 'आमंत्रित सदस्य', 6);
 
 -- Seed Sample Student User (for testing)
 INSERT INTO users (name, email, password_hash, role, complainant_type, phone, department, batch, gender, category, registration_no) VALUES

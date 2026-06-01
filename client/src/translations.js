@@ -84,8 +84,8 @@ export const translations = {
     verifyOtpBtn: "Verify Email",
     resendOtpBtn: "Resend OTP",
     resendOtp: "Resending...",
-    loginOtpTitle: "Email Verification Required",
-    loginOtpMsg: "Please verify your email before logging in. An OTP has been sent to your registered email address.",
+    loginOtpTitle: "Login Verification (MFA)",
+    loginOtpMsg: "A 6-digit OTP has been sent to your registered email. Enter it to complete login.",
     captchaLabel: "CAPTCHA: Solve the math problem",
     
     // Complainant Dashboard
@@ -252,8 +252,8 @@ export const translations = {
     verifyOtpBtn: "ईमेल सत्यापित करें",
     resendOtpBtn: "फिर से भेजें",
     resendOtp: "भेजा जा रहा है...",
-    loginOtpTitle: "ईमेल सत्यापन आवश्यक",
-    loginOtpMsg: "कृपया अपने ईमेल को लॉगिन करने से पहले सत्यापित करें। हमने आपके पंजीकृत ईमेल पर एक OTP भेजा है।",
+    loginOtpTitle: "लॉगिन सत्यापन (MFA)",
+    loginOtpMsg: "आपके पंजीकृत ईमेल पर एक 6-अंकीय OTP भेजा गया है। लॉगिन पूरा करने के लिए इसे दर्ज करें।",
     captchaLabel: "कैप्चा: गणित समस्या हल करें",
     
     // Complainant Dashboard

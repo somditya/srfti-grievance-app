@@ -184,6 +184,44 @@ app.get('/api/appellate', async (req, res) => {
   }
 });
 
+// --- SGRC MEMBERS ROUTERS ---
+// Get all SGRC committee members (public — for landing page)
+app.get('/api/sgrc-members', async (req, res) => {
+  try {
+    const members = await db.query('SELECT * FROM sgrc_members ORDER BY sort_order ASC, id ASC');
+    res.json(members);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Save SGRC committee members (full replacement — admin only)
+app.post('/api/sgrc-members', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Forbidden. Admin access required.' });
+  }
+
+  const { members } = req.body;
+  if (!Array.isArray(members)) {
+    return res.status(400).json({ message: 'Members array is required.' });
+  }
+
+  try {
+    // Clear existing members and insert new set
+    await db.query('DELETE FROM sgrc_members');
+    for (let i = 0; i < members.length; i++) {
+      const m = members[i];
+      await db.query(
+        'INSERT INTO sgrc_members (name_en, name_hi, role_en, role_hi, sort_order) VALUES (?, ?, ?, ?, ?)',
+        [m.name_en || '', m.name_hi || '', m.role_en || '', m.role_hi || '', i]
+      );
+    }
+    res.json({ message: 'SGRC committee members saved successfully.', count: members.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- AUTH ROUTERS ---
 // Get CAPTCHA question
 app.get('/api/auth/captcha', (req, res) => {
@@ -437,62 +475,42 @@ app.post('/api/auth/login', async (req, res) => {
 
     const user = users[0];
 
-    // Check if email is verified - if not, verify password and return require_otp
-    if (!user.email_verified) {
-      const isMatch = await bcrypt.compare(password, user.password_hash);
-      if (!isMatch) {
-        return res.status(400).json({ message: 'Invalid credentials. Incorrect password.' });
-      }
-      // Password is correct but email not verified - send OTP flow
-      const otp = crypto.randomInt(100000, 999999).toString();
-      otpStore.set(loginEmail, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
-
-      // Send OTP email
-      await email.sendEmail({
-        to: loginEmail,
-        subject: 'SRFTI Grievance Portal — Login Verification OTP',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #1e40af;">Login Verification</h2>
-            <p>Dear <strong>${user.name}</strong>,</p>
-            <p>Please use the following OTP to complete your login:</p>
-            <div style="background: #f3f4f6; padding: 1.5rem; text-align: center; font-size: 2rem; font-weight: bold; letter-spacing: 0.5rem; margin: 1rem 0;">${otp}</div>
-            <p>This OTP expires in 10 minutes.</p>
-            <p style="color: #666; font-size: 0.85rem;">SRFTI Grievance Redressal Portal<br/>agent@ailab.srfti.ac.in</p>
-          </div>
-        `,
-        text: `Your SRFTI Grievance Portal login verification OTP: ${otp} (valid for 10 minutes)`,
-      }).catch(err => console.error('[Email] Login OTP send failed:', err.message));
-
-      return res.status(200).json({
-        require_otp: true,
-        message: 'Please verify your email before logging in. An OTP has been sent to your registered email.',
-        email: loginEmail
-      });
-    }
-
+    // Validate password
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid credentials. Incorrect password.' });
     }
 
-    // Generate JWT
-    const token = jwt.sign(
-      { id: user.id, name: user.name, email: user.email, role: user.role, complainant_type: user.complainant_type },
-      JWT_SECRET,
-      { expiresIn: '24h' }
-    );
+    // MFA: Always send OTP on every login after valid credentials
+    const otp = crypto.randomInt(100000, 999999).toString();
+    otpStore.set(loginEmail, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
 
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        complainant_type: user.complainant_type,
-        phone: user.phone
-      }
+    // Send OTP email
+    await email.sendEmail({
+      to: loginEmail,
+      subject: 'SRFTI Grievance Portal — Login Verification OTP',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #1e40af;">Login Verification</h2>
+          <p>Dear <strong>${user.name}</strong>,</p>
+          <p>Please use the following OTP to complete your login:</p>
+          <div style="background: #f3f4f6; padding: 1.5rem; text-align: center; font-size: 2rem; font-weight: bold; letter-spacing: 0.5rem; margin: 1rem 0;">${otp}</div>
+          <p>This OTP expires in 10 minutes.</p>
+          <p style="color: #666; font-size: 0.85rem;">SRFTI Grievance Redressal Portal<br/>agent@ailab.srfti.ac.in</p>
+        </div>
+      `,
+      text: `Your SRFTI Grievance Portal login verification OTP: ${otp} (valid for 10 minutes)`,
+    }).catch(err => console.error('[Email] Login OTP send failed:', err.message));
+
+    // Mark email as verified on first successful login (if not already)
+    if (!user.email_verified) {
+      await db.query('UPDATE users SET email_verified = true WHERE id = ?', [user.id]).catch(() => {});
+    }
+
+    return res.status(200).json({
+      require_otp: true,
+      message: 'An OTP has been sent to your registered email. Please enter it to complete login.',
+      email: loginEmail
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -908,19 +926,27 @@ app.post('/api/admin/users', authenticateToken, async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hash = password ? await bcrypt.hash(password, salt) : '$2a$10$tZ20bZz98p/eK.K7jUf2FuyXF41F5uT5kG70D.f/M38R7hK0oW0e.'; // default hash of admin123
 
-    // Check if user already exists
-    const existing = await db.query('SELECT id FROM users WHERE email = ?', [adminEmail]);
+    // Check if user exists by id (edit mode) or email (duplicate check)
+    let existing = [];
+    if (id) {
+      existing = await db.query('SELECT id, email FROM users WHERE id = ?', [id]);
+    }
+    if (!existing.length) {
+      existing = await db.query('SELECT id, email FROM users WHERE email = ?', [adminEmail]);
+    }
+
     if (existing.length > 0) {
-      // Update existing
+      // Update existing — use id as the key to avoid email-change issues
+      const existingId = existing[0].id;
       if (password) {
         await db.query(
-          'UPDATE users SET name = ?, role = ?, complainant_type = ?, phone = ?, password_hash = ? WHERE email = ?',
-          [name, role, complainant_type, phone || null, hash, adminEmail]
+          'UPDATE users SET name = ?, email = ?, role = ?, complainant_type = ?, phone = ?, password_hash = ? WHERE id = ?',
+          [name, adminEmail, role, complainant_type, phone || null, hash, existingId]
         );
       } else {
         await db.query(
-          'UPDATE users SET name = ?, role = ?, complainant_type = ?, phone = ? WHERE email = ?',
-          [name, role, complainant_type, phone || null, adminEmail]
+          'UPDATE users SET name = ?, email = ?, role = ?, complainant_type = ?, phone = ? WHERE id = ?',
+          [name, adminEmail, role, complainant_type, phone || null, existingId]
         );
       }
     } else {
@@ -949,6 +975,28 @@ app.post('/api/admin/users', authenticateToken, async (req, res) => {
     }
     
     res.json({ message: 'Officer settings configured successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete an administrative user
+app.delete('/api/admin/users/:id', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden.' });
+  const { id } = req.params;
+
+  try {
+    const existing = await db.query("SELECT id, email, role FROM users WHERE id = ? AND role IN ('nodal_officer', 'appellate_authority')", [id]);
+    if (existing.length === 0) {
+      return res.status(404).json({ message: 'Officer not found.' });
+    }
+
+    await db.query('DELETE FROM users WHERE id = ?', [id]);
+
+    // Also clean up appellate_officers if applicable
+    await db.query('DELETE FROM appellate_officers WHERE email = ?', [existing[0].email]);
+
+    res.json({ message: 'Officer deleted successfully.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1138,6 +1186,24 @@ async function startServer() {
     }
   } catch (err) {
     console.error('[Migration] email_verified migration failed:', err.message);
+  }
+
+  // 1e. Migrate: create sgrc_members table if missing
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS sgrc_members (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name_en VARCHAR(255) NOT NULL,
+        name_hi VARCHAR(255) NOT NULL,
+        role_en VARCHAR(255) NOT NULL,
+        role_hi VARCHAR(255) NOT NULL,
+        sort_order INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('[Migration] Ensured sgrc_members table exists.');
+  } catch (err) {
+    console.error('[Migration] sgrc_members table creation failed:', err.message);
   }
 
   // 2. Auto-seed core roles if table is empty
