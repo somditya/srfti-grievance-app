@@ -10,8 +10,9 @@ function AdminDashboard({
   systemSettings,
   setSystemSettings,
 }) {
-  const [activeSubTab, setActiveSubTab] = useState("settings"); // settings, users, analytics
+  const [activeSubTab, setActiveSubTab] = useState("settings"); // settings, users, sgrc-members, analytics
   const [officers, setOfficers] = useState([]);
+  const [sgrcMembers, setSgrcMembers] = useState([]); // For managing landing page committee members
   const [reports, setReports] = useState(null);
 
   // SLA forms
@@ -33,6 +34,13 @@ function AdminDashboard({
   const [officerSector, setOfficerSector] = useState("student");
   const [officerPhone, setOfficerPhone] = useState("");
   const [appellateTitle, setAppellateTitle] = useState("");
+
+  // SGRC Members state
+  const [sgrcMemberNameEn, setSgrcMemberNameEn] = useState("");
+  const [sgrcMemberNameHi, setSgrcMemberNameHi] = useState("");
+  const [sgrcMemberRoleEn, setSgrcMemberRoleEn] = useState("");
+  const [sgrcMemberRoleHi, setSgrcMemberRoleHi] = useState("");
+  const [editingSgrcIndex, setEditingSgrcIndex] = useState(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -139,6 +147,102 @@ function AdminDashboard({
     } finally {
       setLoading(false);
     }
+  };
+
+  // Load SGRC members from members.json file
+  useEffect(() => {
+    const loadSgrcMembers = async () => {
+      try {
+        const response = await fetch(`${API_URL}/sgrc-members`);
+        if (response.ok) {
+          const data = await response.json();
+          setSgrcMembers(data.members || []);
+        }
+      } catch (err) {
+        console.warn("[API] Failed to load SGRC members, using defaults");
+      }
+    };
+    loadSgrcMembers();
+  }, []);
+
+  // Register SGRC member (for landing page)
+  const handleRegisterSgrcMember = async (e) => {
+    e.preventDefault();
+    if (!sgrcMemberNameEn || !sgrcMemberNameHi || !sgrcMemberRoleEn || !sgrcMemberRoleHi) {
+      return;
+    }
+
+    const newMember = {
+      name_en: sgrcMemberNameEn,
+      name_hi: sgrcMemberNameHi,
+      role_en: sgrcMemberRoleEn,
+      role_hi: sgrcMemberRoleHi
+    };
+
+    let updatedMembers;
+    if (editingSgrcIndex !== null) {
+      updatedMembers = [...sgrcMembers];
+      updatedMembers[editingSgrcIndex] = newMember;
+    } else {
+      updatedMembers = [newMember, ...sgrcMembers];
+    }
+
+    setSgrcMembers(updatedMembers);
+    setSgrcMemberNameEn("");
+    setSgrcMemberNameHi("");
+    setSgrcMemberRoleEn("");
+    setSgrcMemberRoleHi("");
+    setEditingSgrcIndex(null);
+
+    // Save to members.json via API
+    try {
+      await fetch(`${API_URL}/sgrc-members`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ members: updatedMembers }),
+      });
+    } catch (err) {
+      console.warn("[API] Could not save SGRC members, trying local storage");
+      localStorage.setItem("sgrc_members", JSON.stringify(updatedMembers));
+    }
+  };
+
+  // Edit SGRC member
+  const handleEditSgrcMember = (index) => {
+    const member = sgrcMembers[index];
+    setSgrcMemberNameEn(member.name_en);
+    setSgrcMemberNameHi(member.name_hi);
+    setSgrcMemberRoleEn(member.role_en);
+    setSgrcMemberRoleHi(member.role_hi);
+    setEditingSgrcIndex(index);
+  };
+
+  // Delete SGRC member
+  const handleDeleteSgrcMember = (index) => {
+    if (confirm("Remove this member from SGRC committee?")) {
+      const updatedMembers = sgrcMembers.filter((_, i) => i !== index);
+      setSgrcMembers(updatedMembers);
+      fetch(`${API_URL}/sgrc-members`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ members: updatedMembers }),
+      }).catch(() => localStorage.setItem("sgrc_members", JSON.stringify(updatedMembers)));
+    }
+  };
+
+  // Cancel edit
+  const handleCancelEditSgrcMember = () => {
+    setSgrcMemberNameEn("");
+    setSgrcMemberNameHi("");
+    setSgrcMemberRoleEn("");
+    setSgrcMemberRoleHi("");
+    setEditingSgrcIndex(null);
   };
 
   // Register administrative officers
@@ -271,6 +375,24 @@ function AdminDashboard({
                 }}
               >
                 Manage Officials
+              </button>
+            </li>
+            <li>
+              <button
+                className={`btn ${activeSubTab === "sgrc-members" ? "btn-primary" : "btn-secondary"}`}
+                style={{
+                  width: "100%",
+                  justifyContent: "flex-start",
+                  border: "none",
+                  padding: "0.75rem 1rem",
+                }}
+                onClick={() => {
+                  setActiveSubTab("sgrc-members");
+                  setError(null);
+                  setSuccess(null);
+                }}
+              >
+                SGRC Committee Members
               </button>
             </li>
             <li>
@@ -513,6 +635,7 @@ function AdminDashboard({
                             : "Registrar"
                         }
                         onChange={(e) => setAppellateTitle(e.target.value)}
+                        onChange={handleOfficerChange}
                       />
                     </div>
                   )}
@@ -602,6 +725,197 @@ function AdminDashboard({
                           </td>
                           <td style={{ padding: "0.75rem" }}>
                             {off.phone || "N/A"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {/* Subpanel: SGRC Committee Members (Landing Page Display) */}
+          {activeSubTab === "sgrc-members" && (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "1.5rem",
+              }}
+            >
+              {/* Form to manage SGRC members */}
+              <section className="card" aria-labelledby="sgrc-members-heading">
+                <h3
+                  id="sgrc-members-heading"
+                  className="card-header"
+                  style={{ fontSize: "1.25rem" }}
+                >
+                  Manage SGRC Committee Members
+                </h3>
+
+                <form onSubmit={handleRegisterSgrcMember}>
+                  {editingSgrcIndex !== null ? (
+                    <div className="form-group">
+                      <label className="form-label">Editing member #{editingSgrcIndex + 1}</label>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={handleCancelEditSgrcMember}
+                        style={{ marginBottom: "1rem" }}
+                      >
+                        Cancel Edit
+                      </button>
+                    </div>
+                  ) : null}
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                      gap: "1rem",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="sgrc-name-en">
+                        Name (English) *
+                      </label>
+                      <input
+                        type="text"
+                        id="sgrc-name-en"
+                        className="form-control"
+                        value={sgrcMemberNameEn}
+                        onChange={(e) => setSgrcMemberNameEn(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="sgrc-name-hi">
+                        Name (Hindi) *
+                      </label>
+                      <input
+                        type="text"
+                        id="sgrc-name-hi"
+                        className="form-control"
+                        value={sgrcMemberNameHi}
+                        onChange={(e) => setSgrcMemberNameHi(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="sgrc-role-en">
+                        Role (English) *
+                      </label>
+                      <input
+                        type="text"
+                        id="sgrc-role-en"
+                        className="form-control"
+                        value={sgrcMemberRoleEn}
+                        onChange={(e) => setSgrcMemberRoleEn(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="sgrc-role-hi">
+                        Role (Hindi) *
+                      </label>
+                      <input
+                        type="text"
+                        id="sgrc-role-hi"
+                        className="form-control"
+                        value={sgrcMemberRoleHi}
+                        onChange={(e) => setSgrcMemberRoleHi(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    style={{ marginTop: "1rem" }}
+                    disabled={loading}
+                  >
+                    {editingSgrcIndex !== null ? 'Update Member' : 'Add Member'}
+                  </button>
+                </form>
+              </section>
+
+              {/* Registered SGRC members table */}
+              <section className="card" aria-labelledby="sgrc-members-list-heading">
+                <h3
+                  id="sgrc-members-list-heading"
+                  className="card-header"
+                  style={{ fontSize: "1.15rem" }}
+                >
+                  Committee Members List
+                </h3>
+
+                <div style={{ overflowX: "auto" }}>
+                  <table
+                    style={{
+                      width: "100%",
+                      borderCollapse: "collapse",
+                      textAlign: "left",
+                    }}
+                    role="table"
+                  >
+                    <thead>
+                      <tr
+                        style={{
+                          borderBottom: "2px solid var(--border-color)",
+                          fontWeight: 700,
+                        }}
+                      >
+                        <th style={{ padding: "0.75rem" }}>Name (English)</th>
+                        <th style={{ padding: "0.75rem" }}>Name (Hindi)</th>
+                        <th style={{ padding: "0.75rem" }}>Role (English)</th>
+                        <th style={{ padding: "0.75rem" }}>Role (Hindi)</th>
+                        <th style={{ padding: "0.75rem" }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sgrcMembers.map((member, index) => (
+                        <tr
+                          key={index}
+                          style={{
+                            borderBottom: "1px solid var(--border-color)",
+                            fontSize: "0.9rem",
+                          }}
+                        >
+                          <td style={{ padding: "0.75rem", fontWeight: 600 }}>
+                            {member.name_en}
+                          </td>
+                          <td style={{ padding: "0.75rem" }}>
+                            {member.name_hi}
+                          </td>
+                          <td style={{ padding: "0.75rem" }}>
+                            {member.role_en}
+                          </td>
+                          <td style={{ padding: "0.75rem" }}>
+                            {member.role_hi}
+                          </td>
+                          <td style={{ padding: "0.75rem" }}>
+                            <div style={{ display: "flex", gap: "0.5rem" }}>
+                              <button
+                                onClick={() => handleEditSgrcMember(index)}
+                                className="btn btn-secondary"
+                                style={{ padding: "0.3rem 0.6rem", fontSize: "0.85rem" }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteSgrcMember(index)}
+                                className="btn btn-danger"
+                                style={{ padding: "0.3rem 0.6rem", fontSize: "0.85rem" }}
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
