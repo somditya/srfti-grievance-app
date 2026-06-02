@@ -16,9 +16,6 @@ const CAPTCHA_REQUIRED = process.env.CAPTCHA_REQUIRED !== 'false';
 // In-memory OTP store (in production, use Redis or database)
 const otpStore = new Map();
 
-// In-memory rate limiting store (in production, use Redis)
-const rateLimitStore = new Map();
-
 // In-memory CAPTCHA store
 const captchaStore = new Map();
 
@@ -32,26 +29,6 @@ function generateCaptcha() {
   const question = `${num1} ${operator} ${num2} = ?`;
   captchaStore.set(id, { question, answer, expiresAt: Date.now() + 5 * 60 * 1000 }); // 5 min expiry
   return { id, question };
-}
-
-// Rate limiting helper
-function checkRateLimit(ip, maxAttempts = 5, windowMs = 15 * 60 * 1000) {
-  const key = `${ip}-captcha`;
-  const now = Date.now();
-  const attempts = rateLimitStore.get(key) || { count: 0, resetTime: now + windowMs };
-
-  if (now > attempts.resetTime) {
-    rateLimitStore.set(key, { count: 1, resetTime: now + windowMs });
-    return { allowed: true };
-  }
-
-  if (attempts.count >= maxAttempts) {
-    return { allowed: false, retryAfter: Math.ceil((attempts.resetTime - now) / 1000) };
-  }
-
-  attempts.count++;
-  rateLimitStore.set(key, attempts);
-  return { allowed: true };
 }
 
 // Password validation function
@@ -212,8 +189,8 @@ app.post('/api/sgrc-members', authenticateToken, async (req, res) => {
     for (let i = 0; i < members.length; i++) {
       const m = members[i];
       await db.query(
-        'INSERT INTO sgrc_members (name_en, name_hi, role_en, role_hi, sort_order) VALUES (?, ?, ?, ?, ?)',
-        [m.name_en || '', m.name_hi || '', m.role_en || '', m.role_hi || '', i]
+        'INSERT INTO sgrc_members (name_en, name_hi, role_en, role_hi, designation_en, designation_hi, mobile, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [m.name_en || '', m.name_hi || '', m.role_en || '', m.role_hi || '', m.designation_en || '', m.designation_hi || '', m.mobile || '', i]
       );
     }
     res.json({ message: 'SGRC committee members saved successfully.', count: members.length });
@@ -238,12 +215,6 @@ app.post('/api/auth/register', async (req, res) => {
 
   // CAPTCHA verification (simple math-based)
   if (CAPTCHA_REQUIRED) {
-    const clientIp = req.ip || req.connection.remoteAddress;
-    const rateLimit = checkRateLimit(clientIp);
-    if (!rateLimit.allowed) {
-      return res.status(429).json({ message: `Too many attempts. Please try again in ${rateLimit.retryAfter} seconds.` });
-    }
-
     if (!captcha_token || !captcha_answer) {
       return res.status(400).json({ message: 'CAPTCHA verification is required.' });
     }
@@ -448,12 +419,6 @@ app.post('/api/auth/login', async (req, res) => {
 
   // CAPTCHA verification (simple math-based)
   if (CAPTCHA_REQUIRED) {
-    const clientIp = req.ip || req.connection.remoteAddress;
-    const rateLimit = checkRateLimit(clientIp);
-    if (!rateLimit.allowed) {
-      return res.status(429).json({ message: `Too many attempts. Please try again in ${rateLimit.retryAfter} seconds.` });
-    }
-
     if (!captcha_token || !captcha_answer) {
       return res.status(400).json({ message: 'CAPTCHA verification is required.' });
     }
@@ -527,12 +492,6 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
   // CAPTCHA verification (simple math-based)
   if (CAPTCHA_REQUIRED) {
-    const clientIp = req.ip || req.connection.remoteAddress;
-    const rateLimit = checkRateLimit(clientIp);
-    if (!rateLimit.allowed) {
-      return res.status(429).json({ message: `Too many attempts. Please try again in ${rateLimit.retryAfter} seconds.` });
-    }
-
     if (!captcha_token || !captcha_answer) {
       return res.status(400).json({ message: 'CAPTCHA verification is required.' });
     }
@@ -916,8 +875,8 @@ app.get('/api/admin/users', authenticateToken, async (req, res) => {
 // Create/Update administrative users (Nodal Officers, Appellate Authorities)
 app.post('/api/admin/users', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden.' });
-  const { name, email: adminEmail, password, role, complainant_type, phone, appellate_title } = req.body;
-  
+  const { id, name, email: adminEmail, password, role, complainant_type, phone, appellate_title } = req.body;
+
   if (!name || !adminEmail || !role || !complainant_type) {
     return res.status(400).json({ message: 'Name, email, role, and complainant type/sector are required.' });
   }

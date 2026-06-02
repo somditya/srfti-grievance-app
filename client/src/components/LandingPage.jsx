@@ -9,19 +9,23 @@ function LandingPage({ t, setCurrentView, systemSettings, appellateConfigs, lang
   // ─── SGRC Constitution ────────────────────────────────────────────────────────
   // Default members list (used when no admin-provided members)
   const defaultMembers = [
-    { name_en: 'Prof. Sudeshna Lahiri',        name_hi: 'प्रो. सुदेशना लाहिड़ी',          role_en: 'Chairperson',    role_hi: 'अध्यक्ष' },
-    { name_en: 'Prof. Sanjit Dey',             name_hi: 'प्रो. संजीत डे',                role_en: 'Member',         role_hi: 'सदस्य' },
-    { name_en: 'Prof. Siddhartha Sankar Saha', name_hi: 'प्रो. सिद्धार्थ शंकर साहा',    role_en: 'Member',         role_hi: 'सदस्य' },
-    { name_en: 'Prof. Sandip Mondal',          name_hi: 'प्रो. संदीप मंडल',              role_en: 'Member',         role_hi: 'सदस्य' },
-    { name_en: 'Prof. Diptendu Chatterjee',    name_hi: 'प्रो. दीप्तेंदु चटर्जी',       role_en: 'Member',         role_hi: 'सदस्य' },
-    { name_en: 'Student Nominee',              name_hi: 'छात्र नामिती',                  role_en: 'Invitee Member', role_hi: 'आमंत्रित सदस्य' },
+    { name_en: 'Prof. Sudeshna Lahiri',        name_hi: 'प्रो. सुदेशना लाहिड़ी',          role_en: 'Chairperson',    role_hi: 'अध्यक्ष', designation_en: 'Professor', designation_hi: 'प्रोफेसर', mobile: '+91 98765 43210' },
+    { name_en: 'Prof. Sanjit Dey',             name_hi: 'प्रो. संजीत डे',                role_en: 'Member',         role_hi: 'सदस्य', designation_en: 'Professor', designation_hi: 'प्रोफेसर', mobile: '+91 98765 43211' },
+    { name_en: 'Prof. Siddhartha Sankar Saha', name_hi: 'प्रो. सिद्धार्थ शंकर साहा',    role_en: 'Member',         role_hi: 'सदस्य', designation_en: 'Professor', designation_hi: 'प्रोफेसर', mobile: '+91 98765 43212' },
+    { name_en: 'Prof. Sandip Mondal',          name_hi: 'प्रो. संदीप मंडल',              role_en: 'Member',         role_hi: 'सदस्य', designation_en: 'Professor', designation_hi: 'प्रोफेसर', mobile: '+91 98765 43213' },
+    { name_en: 'Prof. Diptendu Chatterjee',    name_hi: 'प्रो. दीप्तेंदु चटर्जी',       role_en: 'Member',         role_hi: 'सदस्य', designation_en: 'Professor', designation_hi: 'प्रोफेसर', mobile: '+91 98765 43214' },
+    { name_en: 'Student Nominee',              name_hi: 'छात्र नामिती',                  role_en: 'Invitee Member', role_hi: 'आमंत्रित सदस्य', designation_en: 'Student Representative', designation_hi: 'छात्र प्रतिनिधि', mobile: '+91 98765 43215' },
   ];
-  const sgrcMembers = members.length > 0 ? members : defaultMembers;
-  const sgrcOffice = {
-    name: 'Sri Tapes Chandra Chakrabarti',
-    title_en: 'Sr. Superintendent, Law Office',
-    title_hi: 'वरिष्ठ अधीक्षक, विधि कार्यालय',
-  };
+
+  // Merge backend members with default values for missing fields
+  // Use defaultMembers if backend returns empty array or null
+  const hasValidMembers = Array.isArray(members) && members.length > 0;
+  const sgrcMembers = hasValidMembers ? members.map(member => ({
+    ...member,
+    designation_en: member.designation_en || '',
+    designation_hi: member.designation_hi || '',
+    mobile: member.mobile || '',
+  })) : defaultMembers;
 
   // Dynamic values based on settings loaded from API or local defaults
   const studentSla = systemSettings.student_resolution_days || 22;
@@ -464,14 +468,7 @@ function LandingPage({ t, setCurrentView, systemSettings, appellateConfigs, lang
             }}
           >
             {/* Card header */}
-            <div style={{
-              background: 'var(--primary)',
-              color: '#fff',
-              padding: '0.85rem 1.25rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.6rem',
-            }}>
+            <div className="sgrc-header">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
                 <circle cx="9" cy="7" r="4" />
@@ -479,7 +476,6 @@ function LandingPage({ t, setCurrentView, systemSettings, appellateConfigs, lang
               </svg>
               <h4
                 id="sgrc-panel-heading"
-                style={{ margin: 0, fontWeight: 700, fontSize: '0.95rem', letterSpacing: '0.01em' }}
               >
                 {language === 'en' ? 'Constitution of the SGRC' : 'एसजीआरसी का गठन'}
               </h4>
@@ -492,59 +488,42 @@ function LandingPage({ t, setCurrentView, systemSettings, appellateConfigs, lang
                   key={i}
                   style={{
                     display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0.55rem 1.1rem',
-                    gap: '0.75rem',
+                    flexDirection: 'column',
+                    padding: '0.75rem 1.1rem',
+                    gap: '0.25rem',
                     borderBottom: i < sgrcMembers.length - 1 ? '1px solid var(--border-color)' : 'none',
-                    // Highlight chairperson row subtly
                     background: m.role_en === 'Chairperson' ? 'var(--primary-light, #e8f5e9)' : 'transparent',
                   }}
                 >
-                  <span style={{ fontWeight: m.role_en === 'Chairperson' ? 700 : 500, fontSize: '0.88rem', color: 'var(--text-main)', lineHeight: 1.3 }}>
-                    {language === 'en' ? m.name_en : m.name_hi}
-                  </span>
-                  <span style={{
-                    flexShrink: 0,
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    color: m.role_en === 'Chairperson' ? 'var(--primary)' : 'var(--text-muted)',
-                    background: m.role_en === 'Chairperson' ? 'var(--primary-light, #e8f5e9)' : 'var(--bg-app)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '999px',
-                    padding: '0.15rem 0.6rem',
-                    whiteSpace: 'nowrap',
-                  }}>
-                    {language === 'en' ? m.role_en : m.role_hi}
-                  </span>
+                  {/* Name & Role row */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontWeight: m.role_en === 'Chairperson' ? 700 : 500, fontSize: '0.88rem', color: 'var(--text-main)', lineHeight: 1.3 }}>
+                        {language === 'en' ? m.name_en : m.name_hi}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                        {m.designation_en ? (language === 'en' ? m.designation_en : m.designation_hi) : '-'}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
+                        {m.mobile || '-'}
+                      </span>
+                    </div>
+                    <span style={{
+                      flexShrink: 0,
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      color: m.role_en === 'Chairperson' ? 'var(--primary)' : 'var(--text-muted)',
+                      background: m.role_en === 'Chairperson' ? 'var(--primary-light, #e8f5e9)' : 'var(--bg-app)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '999px',
+                      padding: '0.15rem 0.6rem',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {language === 'en' ? m.role_en : m.role_hi}
+                    </span>
+                  </div>
                 </div>
               ))}
-            </div>
-
-            {/* Office footer */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '0.65rem',
-              padding: '0.85rem 1.1rem',
-              background: 'var(--bg-app)',
-              borderTop: '2px solid var(--border-color)',
-            }}>
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: '2px' }}>
-                <rect x="2" y="7" width="20" height="14" rx="2" />
-                <path d="M16 3H8v4h8V3z" />
-              </svg>
-              <div>
-                <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '0.2rem' }}>
-                  {language === 'en' ? 'Office' : 'कार्यालय'}
-                </span>
-                <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)', display: 'block' }}>
-                  {sgrcOffice.name}
-                </span>
-                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.1rem' }}>
-                  {language === 'en' ? sgrcOffice.title_en : sgrcOffice.title_hi}
-                </span>
-              </div>
             </div>
           </aside>
           {/* ── END RIGHT column ─────────────────────────────────────────────── */}

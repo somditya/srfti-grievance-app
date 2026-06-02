@@ -192,7 +192,7 @@ a, button, input, select, textarea {
 
 /* --- ACCESSIBLE ACCENT HEADER --- */
 .portal-header {
-  background: linear-gradient(135deg, var(--primary) 0%, hsl(var(--primary-hue), var(--primary-sat), calc(var(--primary-light) - 10%)) 100%);
+  background: linear-gradient(135deg, #be183d 0%, #9f1833 100%);
   border-bottom: 4px solid var(--secondary);
   color: #ffffff;
   padding: 1.25rem 2rem;
@@ -202,6 +202,25 @@ a, button, input, select, textarea {
 [data-contrast="high"] .portal-header {
   background: #000000;
   border-bottom: 4px solid #fcd34d;
+  color: #ffffff;
+}
+
+/* SGRC Panel Header - Improved contrast */
+.sgrc-header {
+  background: linear-gradient(135deg, #be183d 0%, #9f1833 100%);
+  border-bottom: 4px solid var(--secondary);
+  color: #ffffff;
+  padding: 0.85rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.sgrc-header h4 {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
   color: #ffffff;
 }
 

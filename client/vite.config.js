@@ -10,7 +10,15 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://backend:5000',
-        changeOrigin: true
+        changeOrigin: true,
+        configure: (proxy, options) => {
+          proxy.on('error', (err, req, res) => {
+            console.log('proxy error', err);
+          });
+          proxy.on('proxy_req_error', (err, req, res) => {
+            console.log('proxy_req_error', err);
+          });
+        }
       },
       '/uploads': {
         target: 'http://backend:5000',

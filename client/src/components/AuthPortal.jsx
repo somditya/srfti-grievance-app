@@ -176,14 +176,8 @@ function AuthPortal({ t, handleLogin, setCurrentView, language, initialMode, onM
         setConfirmPassword('');
       }
     } catch (err) {
-      console.warn('[API Auth] Server is unreachable or threw error. Providing simulation bypass options.');
-      const msg = err.message || 'Server connection error.';
-      if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already exists')) {
-        setEmailExists(true);
-        setError(null);
-      } else {
-        setError(msg);
-      }
+      console.error('[API Auth] Error:', err.message);
+      setError(err.message || 'Unable to connect to server. Please ensure the backend service is running and try again.');
     } finally {
       setLoading(false);
     }
@@ -274,30 +268,6 @@ function AuthPortal({ t, handleLogin, setCurrentView, language, initialMode, onM
     } finally {
       setResendingOtp(false);
     }
-  };
-
-  // Graceful visual simulation helper for offline environments
-  const handleSimulationLogin = (role, emailSim, complainantTypeSim) => {
-    // Generate a simple simulated JWT payload token
-    const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-    const payload = btoa(JSON.stringify({
-      id: 99,
-      name: role === 'admin' ? 'Simulated Admin' : (role === 'nodal_officer' ? `Nodal Officer (${complainantTypeSim})` : ' Rahul (Simulated Student)'),
-      email: emailSim,
-      role: role,
-      complainant_type: complainantTypeSim,
-      exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours
-    }));
-    const token = `${header}.${payload}.signature_placeholder`;
-
-    handleLogin(token, {
-      id: 99,
-      name: role === 'admin' ? 'Simulated Admin' : (role === 'nodal_officer' ? `Nodal Officer (${complainantTypeSim})` : 'Rahul (Simulated Student)'),
-      email: emailSim,
-      role: role,
-      complainant_type: complainantTypeSim,
-      phone: '+91-9999999999'
-    });
   };
 
   return (

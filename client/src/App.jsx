@@ -84,8 +84,8 @@ function App() {
         }
         setBackendError(null);
       } catch (err) {
-        console.warn('[API Sync] Backend not available yet. Operating with standard configuration defaults.', err.message);
-        setBackendError('Backend Service offline. Local UI features running in simulation mode.');
+        console.error('[API Sync] Backend not available:', err.message);
+        setBackendError('Backend Service offline. Please ensure the server and database are running.');
       }
     }
     loadConfig();

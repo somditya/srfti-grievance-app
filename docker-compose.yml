@@ -40,6 +40,8 @@ services:
       - DB_PASSWORD=srfti_password
       - DB_NAME=srfti_grievance
       - JWT_SECRET=srfti_super_jwt_secret_key
+      - NODE_ENV=production
+      - CAPTCHA_REQUIRED=true
     volumes:
       - ./server:/app
       - /app/node_modules
@@ -56,7 +58,7 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=http://localhost:5000/api
+      - VITE_API_URL=http://backend:5000/api
       - CHOKIDAR_USEPOLLING=true
     volumes:
       - ./client:/app

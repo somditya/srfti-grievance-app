@@ -26,14 +26,8 @@ function AppellateDashboard({ t, currentUser, authToken, language }) {
         setGrievances(data);
       }
     } catch (err) {
-      console.warn('[API Fetch] Failed. Running in local simulation mode.');
-      // Local Mock DB hydrate if server offline
-      const localGrievances = JSON.parse(localStorage.getItem('srfti_sim_grievances')) || [];
-      // Filter for escalated or hearing_convened status and matching sector
-      setGrievances(localGrievances.filter(g =>
-        (g.status === 'escalated' || g.status === 'hearing_convened') &&
-        g.category.toLowerCase().includes(currentUser.complainant_type.slice(0, 3))
-      ));
+      console.error('[API Fetch] Failed to load escalations:', err.message);
+      setError('Unable to load escalated cases. Server connection failed.');
     }
   };
 
@@ -101,37 +95,9 @@ function AppellateDashboard({ t, currentUser, authToken, language }) {
         throw new Error(data.message || 'Action execution failed');
       }
     } catch (err) {
-      console.warn('[API Action] Offline mode simulation.');
-
-      // Update local storage values
-      const localGrievances = JSON.parse(localStorage.getItem('srfti_sim_grievances')) || [];
-      const index = localGrievances.findIndex(g => g.id === selectedGrievance.id);
-
-      if (index !== -1) {
-        localGrievances[index].status = 'resolved';
-        localGrievances[index].resolved_at = new Date().toISOString();
-        localStorage.setItem('srfti_sim_grievances', JSON.stringify(localGrievances));
-      }
-
-      // Append Audit Trail history
-      const localHistory = JSON.parse(localStorage.getItem(`srfti_sim_history_${selectedGrievance.id}`)) || [];
-      localHistory.push({
-        id: localHistory.length + 1,
-        grievance_id: selectedGrievance.id,
-        action_by: currentUser.id,
-        action_by_name: currentUser.name,
-        action_by_role: 'appellate_authority',
-        action_type: 'finalize',
-        remarks: actionRemarks,
-        created_at: new Date().toISOString()
-      });
-      localStorage.setItem(`srfti_sim_history_${selectedGrievance.id}`, JSON.stringify(localHistory));
-
-      setSuccess('Final binding ruling issued successfully (Simulated Local Mode).');
-      setActionRemarks('');
-      setFinalRulingDocument(null);
-      setSelectedGrievance(null);
-      fetchEscalations();
+      console.error('[API Action] Failed to finalize ruling:', err.message);
+      setError('Unable to process final ruling. Server connection failed.');
+      return; // Don't proceed with simulation - show error instead
     } finally {
       setFinalizing(false);
     }

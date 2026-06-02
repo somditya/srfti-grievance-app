@@ -32,11 +32,8 @@ function ComplainantDashboard({ t, currentUser, authToken, systemSettings, appel
         setGrievances(data);
       }
     } catch (err) {
-      console.warn('[API Fetch] Failed to load grievances. Initializing with simulated local database.');
-      // Local Mock DB hydrate if server offline
-      const localGrievances = JSON.parse(localStorage.getItem('srfti_sim_grievances')) || [];
-      // Filter for this user
-      setGrievances(localGrievances.filter(g => g.complainant_id === currentUser.id));
+      console.error('[API Fetch] Failed to load grievances:', err.message);
+      setError('Unable to load your grievances. Server connection failed.');
     }
   };
 
@@ -118,51 +115,9 @@ function ComplainantDashboard({ t, currentUser, authToken, systemSettings, appel
         throw new Error(data.message || 'Submission failed');
       }
     } catch (err) {
-      console.warn('[API Submit] Server unreachable. Writing to simulated local state.');
-      
-      // Simulate Local Storage DB insert
-      const localGrievances = JSON.parse(localStorage.getItem('srfti_sim_grievances')) || [];
-      const newId = localGrievances.length + 101;
-      
-      const timelineDays = parseInt(systemSettings[`${currentUser.complainant_type}_resolution_days`]) || 30;
-      
-      const newG = {
-        id: newId,
-        complainant_id: currentUser.id,
-        category,
-        title,
-        description,
-        attachment_path: attachment ? URL.createObjectURL(attachment) : null,
-        status: 'pending',
-        nodal_officer_id: null,
-        timeline_days: timelineDays,
-        created_at: new Date().toISOString(),
-        resolved_at: null,
-        nodal_name: `Nodal Officer (${currentUser.complainant_type})`
-      };
-      
-      localGrievances.unshift(newG);
-      localStorage.setItem('srfti_sim_grievances', JSON.stringify(localGrievances));
-      
-      // Seed audit history
-      const initialHistory = [{
-        id: 1,
-        grievance_id: newId,
-        action_by: currentUser.id,
-        action_by_name: currentUser.name,
-        action_by_role: 'complainant',
-        action_type: 'submitted',
-        remarks: 'Grievance registered in system and routed to respective Nodal Officer.',
-        created_at: new Date().toISOString()
-      }];
-      localStorage.setItem(`srfti_sim_history_${newId}`, JSON.stringify(initialHistory));
-      
-      setSuccess('Grievance filed successfully (Simulated Local Mode).');
-      setTitle('');
-      setDescription('');
-      setAttachment(null);
-      setShowNewForm(false);
-      fetchGrievances();
+      console.error('[API Submit] Server unreachable:', err.message);
+      setError('Unable to file grievance. Server connection failed. Please try again later.');
+      return; // Don't proceed with simulation - show error instead
     } finally {
       setLoading(false);
     }

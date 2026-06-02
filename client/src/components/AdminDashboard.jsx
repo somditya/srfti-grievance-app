@@ -43,7 +43,12 @@ function AdminDashboard({
   const [sgrcMemberNameHi, setSgrcMemberNameHi] = useState("");
   const [sgrcMemberRoleEn, setSgrcMemberRoleEn] = useState("");
   const [sgrcMemberRoleHi, setSgrcMemberRoleHi] = useState("");
+  const [sgrcMemberDesignationEn, setSgrcMemberDesignationEn] = useState("");
+  const [sgrcMemberDesignationHi, setSgrcMemberDesignationHi] = useState("");
+  const [sgrcMemberMobile, setSgrcMemberMobile] = useState("");
   const [editingSgrcIndex, setEditingSgrcIndex] = useState(null);
+  const [draggedIndex, setDraggedIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -140,13 +145,9 @@ function AdminDashboard({
         throw new Error("API Timeline updates failed");
       }
     } catch (err) {
-      console.warn("[API Action] Simulation local save timelines.");
-      setSystemSettings({
-        student_resolution_days: studentDays,
-        faculty_resolution_days: facultyDays,
-        staff_resolution_days: staffDays,
-      });
-      setSuccess("SLA timelines updated successfully (Simulated Local Mode).");
+      console.error("[API Action] Failed to update timelines:", err.message);
+      setError("Unable to update SLA timelines. Server connection failed.");
+      return; // Don't proceed with simulation - show error instead
     } finally {
       setLoading(false);
     }
@@ -179,7 +180,10 @@ function AdminDashboard({
       name_en: sgrcMemberNameEn,
       name_hi: sgrcMemberNameHi,
       role_en: sgrcMemberRoleEn,
-      role_hi: sgrcMemberRoleHi
+      role_hi: sgrcMemberRoleHi,
+      designation_en: sgrcMemberDesignationEn,
+      designation_hi: sgrcMemberDesignationHi,
+      mobile: sgrcMemberMobile,
     };
 
     let updatedMembers;
@@ -195,6 +199,9 @@ function AdminDashboard({
     setSgrcMemberNameHi("");
     setSgrcMemberRoleEn("");
     setSgrcMemberRoleHi("");
+    setSgrcMemberDesignationEn("");
+    setSgrcMemberDesignationHi("");
+    setSgrcMemberMobile("");
     setEditingSgrcIndex(null);
 
     // Save to database via API
@@ -226,6 +233,9 @@ function AdminDashboard({
     setSgrcMemberNameHi(member.name_hi);
     setSgrcMemberRoleEn(member.role_en);
     setSgrcMemberRoleHi(member.role_hi);
+    setSgrcMemberDesignationEn(member.designation_en || "");
+    setSgrcMemberDesignationHi(member.designation_hi || "");
+    setSgrcMemberMobile(member.mobile || "");
     setEditingSgrcIndex(index);
   };
 
@@ -261,7 +271,59 @@ function AdminDashboard({
     setSgrcMemberNameHi("");
     setSgrcMemberRoleEn("");
     setSgrcMemberRoleHi("");
+    setSgrcMemberDesignationEn("");
+    setSgrcMemberDesignationHi("");
+    setSgrcMemberMobile("");
     setEditingSgrcIndex(null);
+  };
+
+  // Drag and drop handlers for reordering
+  const handleDragStart = (e, index) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    setDragOverIndex(index);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    if (draggedIndex === null || dragOverIndex === null || draggedIndex === dragOverIndex) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const updatedMembers = [...sgrcMembers];
+    const [dragged] = updatedMembers.splice(draggedIndex, 1);
+    updatedMembers.splice(dragOverIndex, 0, dragged);
+
+    setSgrcMembers(updatedMembers);
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+
+    // Save to database
+    try {
+      const res = await fetch(`${API_URL}/sgrc-members`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ members: updatedMembers }),
+      });
+      if (res.ok) {
+        setSuccess("Member order updated successfully.");
+      }
+    } catch (err) {
+      console.error("[API] Could not reorder members:", err);
+    }
   };
 
   // Register / Update administrative officers
@@ -278,22 +340,18 @@ function AdminDashboard({
     }
 
     try {
+      // Build request body - only include id when editing existing officer
+      const requestBody = editingOfficerId
+        ? { id: editingOfficerId, name: officerName, email: officerEmail, password: officerPassword || null, role: officerRole, complainant_type: officerSector, phone: officerPhone, appellate_title: appellateTitle }
+        : { name: officerName, email: officerEmail, password: officerPassword || null, role: officerRole, complainant_type: officerSector, phone: officerPhone, appellate_title: appellateTitle };
+
       const res = await fetch(`${API_URL}/admin/users`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${authToken}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          id: editingOfficerId,
-          name: officerName,
-          email: officerEmail,
-          password: officerPassword || null,
-          role: officerRole,
-          complainant_type: officerSector,
-          phone: officerPhone,
-          appellate_title: appellateTitle,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (res.ok) {
@@ -907,6 +965,48 @@ function AdminDashboard({
                         required
                       />
                     </div>
+
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="sgrc-designation-en">
+                        Designation (English)
+                      </label>
+                      <input
+                        type="text"
+                        id="sgrc-designation-en"
+                        className="form-control"
+                        value={sgrcMemberDesignationEn}
+                        onChange={(e) => setSgrcMemberDesignationEn(e.target.value)}
+                        placeholder="e.g., Professor, Dean"
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="sgrc-designation-hi">
+                        Designation (Hindi)
+                      </label>
+                      <input
+                        type="text"
+                        id="sgrc-designation-hi"
+                        className="form-control"
+                        value={sgrcMemberDesignationHi}
+                        onChange={(e) => setSgrcMemberDesignationHi(e.target.value)}
+                        placeholder="उदाहरण के लिए, प्रोफेसर, डीन"
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="sgrc-mobile">
+                        Mobile No.
+                      </label>
+                      <input
+                        type="tel"
+                        id="sgrc-mobile"
+                        className="form-control"
+                        value={sgrcMemberMobile}
+                        onChange={(e) => setSgrcMemberMobile(e.target.value)}
+                        placeholder="+91 XXXXXXXXXX"
+                      />
+                    </div>
                   </div>
 
                   <button
@@ -950,6 +1050,8 @@ function AdminDashboard({
                         <th style={{ padding: "0.75rem" }}>Name (Hindi)</th>
                         <th style={{ padding: "0.75rem" }}>Role (English)</th>
                         <th style={{ padding: "0.75rem" }}>Role (Hindi)</th>
+                        <th style={{ padding: "0.75rem" }}>Designation</th>
+                        <th style={{ padding: "0.75rem" }}>Mobile</th>
                         <th style={{ padding: "0.75rem" }}>Actions</th>
                       </tr>
                     </thead>
@@ -957,9 +1059,16 @@ function AdminDashboard({
                       {sgrcMembers.map((member, index) => (
                         <tr
                           key={index}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, index)}
+                          onDragOver={(e) => handleDragOver(e, index)}
+                          onDragLeave={handleDragLeave}
+                          onDrop={(e) => handleDrop(e, index)}
                           style={{
                             borderBottom: "1px solid var(--border-color)",
                             fontSize: "0.9rem",
+                            backgroundColor: dragOverIndex === index ? 'var(--primary-light, #e8f5e9)' : 'transparent',
+                            cursor: 'grab',
                           }}
                         >
                           <td style={{ padding: "0.75rem", fontWeight: 600 }}>
@@ -973,6 +1082,12 @@ function AdminDashboard({
                           </td>
                           <td style={{ padding: "0.75rem" }}>
                             {member.role_hi}
+                          </td>
+                          <td style={{ padding: "0.75rem" }}>
+                            {member.designation_en || "-"}
+                          </td>
+                          <td style={{ padding: "0.75rem" }}>
+                            {member.mobile || "N/A"}
                           </td>
                           <td style={{ padding: "0.75rem" }}>
                             <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -1326,8 +1441,7 @@ function AdminDashboard({
                         strokeDasharray="18 82"
                         strokeDashoffset="-42"
                       />
-                      <cir
-                        cle
+                      <circle
                         cx="18"
                         cy="18"
                         r="15.91"

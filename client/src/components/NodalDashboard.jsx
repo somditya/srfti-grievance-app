@@ -155,49 +155,9 @@ function NodalDashboard({ t, currentUser, authToken }) {
         }
       }
     } catch (err) {
-      console.warn('[API Action] Offline mode simulation.', err);
-
-      // Update local storage values
-      const localGrievances = JSON.parse(localStorage.getItem('srfti_sim_grievances')) || [];
-      const index = localGrievances.findIndex(g => g.id === selectedGrievance.id);
-
-      if (index !== -1) {
-        // Only change status for resolve and in_progress actions; intermediate_reply keeps current status
-        if (actionType === 'resolve') {
-          localGrievances[index].status = 'nodal_resolved';
-          localGrievances[index].resolution_report_path = resolutionReport ? URL.createObjectURL(resolutionReport) : null;
-        } else if (actionType === 'in_progress') {
-          localGrievances[index].status = 'in_progress';
-        }
-        // actionType === 'intermediate_reply' keeps status as-is (in_progress)
-        localStorage.setItem('srfti_sim_grievances', JSON.stringify(localGrievances));
-      }
-
-      // Append Audit Trail history
-      const localHistory = JSON.parse(localStorage.getItem(`srfti_sim_history_${selectedGrievance.id}`)) || [];
-      let actionTypeLabel;
-      if (actionType === 'resolve') actionTypeLabel = 'resolved';
-      else if (actionType === 'intermediate_reply') actionTypeLabel = 'intermediate_reply';
-      else actionTypeLabel = 'in_progress';
-
-      localHistory.push({
-        id: localHistory.length + 1,
-        grievance_id: selectedGrievance.id,
-        action_by: currentUser.id,
-        action_by_name: currentUser.name,
-        action_by_role: 'nodal_officer',
-        action_type: actionTypeLabel,
-        remarks: actionRemarks,
-        created_at: new Date().toISOString()
-      });
-      localStorage.setItem(`srfti_sim_history_${selectedGrievance.id}`, JSON.stringify(localHistory));
-
-      setSuccess(t('successAction'));
-      setActionRemarks('');
-      setResolutionReport(null);
-      setSelectedGrievance(null);
-      fetchGrievances();
-      fetchEmailLogs();
+      console.error('[API Action] Failed:', err.message);
+      setError('Unable to process action. Server connection failed.');
+      return; // Don't proceed with simulation - show error instead
     } finally {
       setLoading(false);
     }

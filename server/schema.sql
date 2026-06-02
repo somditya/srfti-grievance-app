@@ -47,14 +47,14 @@ CREATE TABLE system_settings (
 -- 4. Grievances Table
 CREATE TABLE grievances (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  case_id VARCHAR(20) NOT NULL UNIQUE,
+  case_id VARCHAR(20) NULL UNIQUE,
   complainant_id INT NOT NULL,
   category VARCHAR(100) NOT NULL, -- Academic, Facilities, Admin, Harassment, etc.
   title VARCHAR(255) NOT NULL,
   description TEXT NOT NULL,
   attachment_path VARCHAR(255) NULL,
   resolution_report_path VARCHAR(255) NULL,
-  status ENUM('pending', 'in_progress', 'nodal_resolved', 'resolved', 'escalated') DEFAULT 'pending',
+  status ENUM('pending', 'in_progress', 'nodal_resolved', 'resolved', 'escalated', 'hearing_convened') DEFAULT 'pending',
   nodal_officer_id INT NULL,
   timeline_days INT NOT NULL, -- Captured snapshot from system settings at filing time
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -82,26 +82,34 @@ CREATE TABLE sgrc_members (
   name_hi VARCHAR(255) NOT NULL,
   role_en VARCHAR(255) NOT NULL,
   role_hi VARCHAR(255) NOT NULL,
+  designation_en VARCHAR(255) NULL,
+  designation_hi VARCHAR(255) NULL,
+  mobile VARCHAR(20) NULL,
   sort_order INT DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Migration script for existing databases (run after CREATE TABLE if needed)
+-- ALTER TABLE sgrc_members ADD COLUMN designation_en VARCHAR(255) NULL;
+-- ALTER TABLE sgrc_members ADD COLUMN designation_hi VARCHAR(255) NULL;
+-- ALTER TABLE sgrc_members ADD COLUMN mobile VARCHAR(20) NULL;
+
 -- --- SEED DATA ---
 
 -- Seed Default Timelines
-INSERT INTO system_settings (setting_key, setting_value) VALUES 
+INSERT INTO system_settings (setting_key, setting_value) VALUES
 ('student_resolution_days', '22'),
 ('faculty_resolution_days', '15'),
 ('staff_resolution_days', '30');
 
 -- Seed Default SGRC Committee Members
-INSERT INTO sgrc_members (name_en, name_hi, role_en, role_hi, sort_order) VALUES
-('Prof. Sudeshna Lahiri', 'प्रो. सुदेशना लाहिड़ी', 'Chairperson', 'अध्यक्ष', 1),
-('Prof. Sanjit Dey', 'प्रो. संजीत डे', 'Member', 'सदस्य', 2),
-('Prof. Siddhartha Sankar Saha', 'प्रो. सिद्धार्थ शंकर साहा', 'Member', 'सदस्य', 3),
-('Prof. Sandip Mondal', 'प्रो. संदीप मंडल', 'Member', 'सदस्य', 4),
-('Prof. Diptendu Chatterjee', 'प्रो. दीप्तेंदु चटर्जी', 'Member', 'सदस्य', 5),
-('Student Nominee', 'छात्र नामिती', 'Invitee Member', 'आमंत्रित सदस्य', 6);
+INSERT INTO sgrc_members (name_en, name_hi, role_en, role_hi, designation_en, designation_hi, mobile, sort_order) VALUES
+('Prof. Sudeshna Lahiri', 'प्रो. सुदेशना लाहिड़ी', 'Chairperson', 'अध्यक्ष', 'Professor', 'प्रोफेसर', '+91 98765 43210', 1),
+('Prof. Sanjit Dey', 'प्रो. संजीत डे', 'Member', 'सदस्य', 'Professor', 'प्रोफेसर', '+91 98765 43211', 2),
+('Prof. Siddhartha Sankar Saha', 'प्रो. सिद्धार्थ शंकर साहा', 'Member', 'सदस्य', 'Professor', 'प्रोफेसर', '+91 98765 43212', 3),
+('Prof. Sandip Mondal', 'प्रो. संदीप मंडल', 'Member', 'सदस्य', 'Professor', 'प्रोफेसर', '+91 98765 43213', 4),
+('Prof. Diptendu Chatterjee', 'प्रो. दीप्तेंदु चटर्जी', 'Member', 'सदस्य', 'Professor', 'प्रोफेसर', '+91 98765 43214', 5),
+('Student Nominee', 'छात्र नामिती', 'Invitee Member', 'आमंत्रित सदस्य', 'Student Representative', 'छात्र प्रतिनिधि', '+91 98765 43215', 6);
 
 -- Seed Sample Student User (for testing)
 INSERT INTO users (name, email, password_hash, role, complainant_type, phone, department, batch, gender, category, registration_no) VALUES
