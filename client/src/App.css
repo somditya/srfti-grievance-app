@@ -345,7 +345,8 @@ a, button, input, select, textarea {
   border: 1px solid #93c5fd;
 }
 
-.status-badge.resolved {
+.status-badge.resolved,
+.status-badge.nodal_resolved {
   background-color: var(--status-resolved);
   color: var(--status-resolved-text);
   border: 1px solid #86efac;

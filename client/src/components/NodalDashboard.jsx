@@ -290,7 +290,7 @@ function NodalDashboard({ t, currentUser, authToken }) {
                           <td style={{ padding: '0.75rem' }}>{stats.elapsed} {t('daysUnit')}</td>
                           <td style={{ padding: '0.75rem' }}>
                             {isClosed ? (
-                              <span style={{ color: 'var(--status-resolved-text)' }}>Resolved</span>
+                              <span className="status-badge resolved" style={{ fontSize: '0.75rem', fontWeight: 800 }}>Resolved</span>
                             ) : (
                               stats.isOverdue ? (
                                 <span className="status-badge escalated" style={{ fontSize: '0.75rem', fontWeight: 800 }}>
