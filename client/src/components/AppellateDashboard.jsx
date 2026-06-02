@@ -3,6 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { API_URL } from '../App';
 
+function formatDate(dateStr) {
+  const d = new Date(dateStr);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+
 function AppellateDashboard({ t, currentUser, authToken, language }) {
   const [grievances, setGrievances] = useState([]);
   const [selectedGrievance, setSelectedGrievance] = useState(null);
@@ -166,7 +174,7 @@ function AppellateDashboard({ t, currentUser, authToken, language }) {
                     <td style={{ padding: '0.75rem', fontWeight: 600 }}>{g.title}</td>
                     <td style={{ padding: '0.75rem' }}>{g.category}</td>
                     <td style={{ padding: '0.75rem' }}>{g.complainant_name || 'Rahul Banerjee'}</td>
-                    <td style={{ padding: '0.75rem' }}>{new Date(g.created_at).toLocaleDateString()}</td>
+                    <td style={{ padding: '0.75rem' }}>{formatDate(g.created_at)}</td>
                     <td style={{ padding: '0.75rem' }}>
                       <span className="status-badge escalated">Escalated</span>
                     </td>
@@ -284,7 +292,7 @@ function AppellateDashboard({ t, currentUser, authToken, language }) {
                               </span>
                             )}
                           </span>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem', flexShrink: 0 }}>{new Date(h.created_at).toLocaleString()}</span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem', flexShrink: 0 }}>{formatDate(h.created_at)}</span>
                         </div>
                         <div style={{ color: 'var(--text-main)', fontStyle: 'italic' }}>"{h.remarks}"</div>
                       </div>

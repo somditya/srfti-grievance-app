@@ -779,11 +779,6 @@ app.post('/api/grievances/:id/action', authenticateToken, upload.single('resolut
     return res.status(400).json({ message: 'Remarks are required.' });
   }
 
-  // Require resolution report when resolving
-  if (action === 'resolve' && user.role === 'nodal_officer' && !resolutionReportPath) {
-    return res.status(400).json({ message: 'Resolution report attachment is required when submitting a resolution.' });
-  }
-
   try {
     const grievances = await db.query('SELECT g.*, u.complainant_type FROM grievances g JOIN users u ON g.complainant_id = u.id WHERE g.id = ?', [id]);
     if (grievances.length === 0) return res.status(404).json({ message: 'Grievance not found.' });

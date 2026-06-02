@@ -3,6 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { API_URL } from '../App';
 
+function formatDate(dateStr) {
+  const d = new Date(dateStr);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+
 function ComplainantDashboard({ t, currentUser, authToken, systemSettings, appellateConfigs, language }) {
   const [grievances, setGrievances] = useState([]);
   const [selectedGrievance, setSelectedGrievance] = useState(null);
@@ -355,7 +363,7 @@ function ComplainantDashboard({ t, currentUser, authToken, systemSettings, appel
                           <td style={{ padding: '0.75rem', fontWeight: 700 }}>{g.case_id}</td>
                           <td style={{ padding: '0.75rem', fontWeight: 600 }}>{g.title}</td>
                           <td style={{ padding: '0.75rem' }}><span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>{g.category}</span></td>
-                          <td style={{ padding: '0.75rem' }}>{new Date(g.created_at).toLocaleDateString()}</td>
+                          <td style={{ padding: '0.75rem' }}>{formatDate(g.created_at)}</td>
                           <td style={{ padding: '0.75rem' }}>
                             {isClosed ? (
                               <span style={{ color: 'var(--status-resolved-text)' }}>Resolved</span>
@@ -415,7 +423,7 @@ function ComplainantDashboard({ t, currentUser, authToken, systemSettings, appel
               <div>
                 <h4 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>{selectedGrievance.title}</h4>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-                  Category: <strong>{selectedGrievance.category}</strong> | Filed On: {new Date(selectedGrievance.created_at).toLocaleString()}
+                  Category: <strong>{selectedGrievance.category}</strong> | Filed On: {formatDate(selectedGrievance.created_at)}
                 </p>
                 <div style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', marginBottom: '1rem', whiteSpace: 'pre-wrap' }}>
                   {selectedGrievance.description}
@@ -450,7 +458,7 @@ function ComplainantDashboard({ t, currentUser, authToken, systemSettings, appel
                     <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: 'var(--status-resolved-text)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 'bold' }}>✓</div>
                     <div>
                       <h6 style={{ fontSize: '0.85rem', fontWeight: 700 }}>{t('originalComplaint')}</h6>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(selectedGrievance.created_at).toLocaleDateString()}</p>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{formatDate(selectedGrievance.created_at)}</p>
                     </div>
                   </div>
 
@@ -546,7 +554,7 @@ function ComplainantDashboard({ t, currentUser, authToken, systemSettings, appel
                               </span>
                             )}
                           </span>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem', flexShrink: 0 }}>{new Date(h.created_at).toLocaleString()}</span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem', flexShrink: 0 }}>{formatDate(h.created_at)}</span>
                         </div>
                         <div style={{ color: 'var(--text-main)', fontStyle: 'italic' }}>"{h.remarks}"</div>
                       </div>

@@ -127,11 +127,8 @@ function App() {
   };
 
   const handleLogout = () => {
-    setCurrentUser(null);
-    setAuthToken(null);
     localStorage.removeItem('srfti_token');
-    setCurrentView('landing');
-    window.location.hash = '/';
+    window.location.href = window.location.origin + window.location.pathname + '#/';
   };
 
   // Navigate and sync URL hash

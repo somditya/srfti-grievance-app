@@ -3,6 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { API_URL } from '../App';
 
+function formatDate(dateStr) {
+  const d = new Date(dateStr);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+
 function NodalDashboard({ t, currentUser, authToken }) {
   const [grievances, setGrievances] = useState([]);
   const [selectedGrievance, setSelectedGrievance] = useState(null);
@@ -102,12 +110,6 @@ function NodalDashboard({ t, currentUser, authToken }) {
       return;
     }
 
-    // Require resolution report only when submitting final resolution
-    if (actionType === 'resolve' && !resolutionReport) {
-      setError('Please attach a resolution report before submitting.');
-      return;
-    }
-
     setError(null);
     setLoading(true);
 
@@ -201,20 +203,24 @@ function NodalDashboard({ t, currentUser, authToken }) {
 
         {/* Tab Selection Navigation */}
         <div className="a11y-group">
-          <button 
+          {/* Resolution Queue tab hidden per requirement */}
+          {/*
+          <button
             className={`btn ${activeTab === 'queue' ? 'btn-primary' : 'btn-secondary'}`}
             style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}
             onClick={() => setActiveTab('queue')}
           >
             Resolution Queue
           </button>
-          <button 
+          */}
+          {/* Email Reminders tab hidden per requirement */}
+          {/* <button
             className={`btn ${activeTab === 'emails' ? 'btn-primary' : 'btn-secondary'}`}
             style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}
             onClick={() => setActiveTab('emails')}
           >
             Email Reminders ({emailLogs.length})
-          </button>
+          </button> */}
         </div>
       </div>
 
@@ -280,7 +286,7 @@ function NodalDashboard({ t, currentUser, authToken }) {
                           <td style={{ padding: '0.75rem', fontWeight: 700 }}>{g.case_id}</td>
                           <td style={{ padding: '0.75rem', fontWeight: 600 }}>{g.title}</td>
                           <td style={{ padding: '0.75rem' }}>{g.complainant_name || 'Rahul Banerjee'}</td>
-                          <td style={{ padding: '0.75rem' }}>{new Date(g.created_at).toLocaleDateString()}</td>
+                          <td style={{ padding: '0.75rem' }}>{formatDate(g.created_at)}</td>
                           <td style={{ padding: '0.75rem' }}>{stats.elapsed} {t('daysUnit')}</td>
                           <td style={{ padding: '0.75rem' }}>
                             {isClosed ? (
@@ -301,7 +307,7 @@ function NodalDashboard({ t, currentUser, authToken }) {
                           </td>
                           <td style={{ padding: '0.75rem' }}>
                             <span className={`status-badge ${g.status}`}>
-                              {t(`status${g.status.charAt(0).toUpperCase() + g.status.slice(1).replace('_', '')}`)}
+                              {t(`status${g.status.split('_').map((w, i) => i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w.charAt(0).toUpperCase() + w.slice(1)).join('')}`)}
                             </span>
                           </td>
                           <td style={{ padding: '0.75rem' }}>
@@ -323,33 +329,16 @@ function NodalDashboard({ t, currentUser, authToken }) {
           </section>
         </div>
       ) : (
-        /* Email Logs Reminder System */
-        <section className="card" aria-labelledby="emails-heading">
-          <div className="card-header" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.5rem' }}>
-            <h3 id="emails-heading" style={{ fontSize: '1.25rem' }}>{t('emailRemindersSimulator')}</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>{t('emailRemindersHelp')}</p>
-          </div>
-          
+        /* Email Logs Reminder System - Hidden per requirement */
+        <section className="card" style={{ display: 'none' }}>
           <div className="notification-inbox">
-            {emailLogs.length === 0 ? (
-              <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No automated alerts triggered yet. SLA compliance is currently clear.</p>
-            ) : (
-              emailLogs.map((log, i) => (
-                <div key={i} className={`notification-item ${log.priority}`} role="log">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginBottom: '0.25rem' }}>
-                    <span style={{ textTransform: 'uppercase', color: log.priority === 'critical' ? 'red' : (log.priority === 'high' ? 'orange' : 'var(--text-muted)') }}>
-                      [{log.priority} alert] Official Reminder Notification
-                    </span>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)' }}>{new Date(log.timestamp).toLocaleString()}</span>
-                  </div>
-                  <p style={{ fontSize: '0.9rem', color: 'var(--text-main)', fontStyle: 'italic' }}>
-                    To: {currentUser.name} &lt;{currentUser.email}&gt;<br/>
-                    Subject: Action Required - Grievance Timelines Compliance Warning<br/>
-                    Message: <strong>{log.message}</strong>
-                  </p>
-                </div>
-              ))
-            )}
+            {emailLogs.map((log, i) => (
+              <div key={i} className={`notification-item ${log.priority}`} role="log">
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-main)', fontStyle: 'italic' }}>
+                  <strong>{log.message}</strong>
+                </p>
+              </div>
+            ))}
           </div>
         </section>
       )}
@@ -389,7 +378,7 @@ function NodalDashboard({ t, currentUser, authToken }) {
               <div>
                 <h4 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>{selectedGrievance.title}</h4>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-                  Category: <strong>{selectedGrievance.category}</strong> | Filed On: {new Date(selectedGrievance.created_at).toLocaleString()}
+                  Category: <strong>{selectedGrievance.category}</strong> | Filed On: {formatDate(selectedGrievance.created_at)}
                 </p>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-main)', marginBottom: '1rem' }}>
                   Complainant: <strong>{selectedGrievance.complainant_name || 'Rahul Banerjee'}</strong> ({selectedGrievance.complainant_email || 'rahul@student.srfti.ac.in'})
@@ -423,7 +412,7 @@ function NodalDashboard({ t, currentUser, authToken }) {
                 <h5 style={{ fontWeight: 700, marginBottom: '0.75rem' }}>SLA Compliance Audit</h5>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.9rem' }}>
                   <div>
-                    Status: <span className={`status-badge ${selectedGrievance.status}`}>{selectedGrievance.status}</span>
+                    Status: <span className={`status-badge ${selectedGrievance.status}`}>{t(`status${selectedGrievance.status.split('_').map((w, i) => i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w.charAt(0).toUpperCase() + w.slice(1)).join('')}`)}</span>
                   </div>
                   <div>
                     Timeline Duration: <strong>{selectedGrievance.timeline_days} Days</strong>
@@ -472,7 +461,7 @@ function NodalDashboard({ t, currentUser, authToken }) {
                               </span>
                             )}
                           </span>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(h.created_at).toLocaleString()}</span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{formatDate(h.created_at)}</span>
                         </div>
                         <div style={{ color: 'var(--text-main)', fontStyle: 'italic' }}>"{h.remarks}"</div>
                       </div>
