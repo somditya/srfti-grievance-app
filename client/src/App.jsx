@@ -43,6 +43,7 @@ function App() {
   });
   const [appellateConfigs, setAppellateConfigs] = useState([]);
   const [sgrcMembers, setSgrcMembers] = useState([]);
+  const [grcStaffMembers, setGrcStaffMembers] = useState([]);
   const [backendError, setBackendError] = useState(null);
   const [forceAuthMode, setForceAuthMode] = useState(null);
 
@@ -81,6 +82,12 @@ function App() {
         if (sgrcRes.ok) {
           const sgrcData = await sgrcRes.json();
           setSgrcMembers(sgrcData);
+        }
+
+        const grcStaffRes = await fetch(`${API_URL}/grc-staff-members`);
+        if (grcStaffRes.ok) {
+          const grcStaffData = await grcStaffRes.json();
+          setGrcStaffMembers(grcStaffData);
         }
         setBackendError(null);
       } catch (err) {
@@ -199,6 +206,7 @@ function App() {
             appellateConfigs={appellateConfigs}
             language={language}
             members={sgrcMembers}
+            grcStaffMembers={grcStaffMembers}
           />
         )}
 

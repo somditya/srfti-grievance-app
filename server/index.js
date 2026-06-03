@@ -199,6 +199,44 @@ app.post('/api/sgrc-members', authenticateToken, async (req, res) => {
   }
 });
 
+// --- GRC Staff Members API ---
+// Get all GRC Staff committee members (public — for landing page)
+app.get('/api/grc-staff-members', async (req, res) => {
+  try {
+    const members = await db.query('SELECT * FROM grc_staff_members ORDER BY sort_order ASC, id ASC');
+    res.json(members);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Save GRC Staff committee members (full replacement — admin only)
+app.post('/api/grc-staff-members', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Forbidden. Admin access required.' });
+  }
+
+  const { members } = req.body;
+  if (!Array.isArray(members)) {
+    return res.status(400).json({ message: 'Members array is required.' });
+  }
+
+  try {
+    // Clear existing members and insert new set
+    await db.query('DELETE FROM grc_staff_members');
+    for (let i = 0; i < members.length; i++) {
+      const m = members[i];
+      await db.query(
+        'INSERT INTO grc_staff_members (name_en, name_hi, role_en, role_hi, designation_en, designation_hi, mobile, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [m.name_en || '', m.name_hi || '', m.role_en || '', m.role_hi || '', m.designation_en || '', m.designation_hi || '', m.mobile || '', i]
+      );
+    }
+    res.json({ message: 'GRC Staff committee members saved successfully.', count: members.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- AUTH ROUTERS ---
 // Get CAPTCHA question
 app.get('/api/auth/captcha', (req, res) => {
@@ -1158,6 +1196,27 @@ async function startServer() {
     console.log('[Migration] Ensured sgrc_members table exists.');
   } catch (err) {
     console.error('[Migration] sgrc_members table creation failed:', err.message);
+  }
+
+  // 1f. Migrate: create grc_staff_members table if missing
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS grc_staff_members (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name_en VARCHAR(255) NOT NULL,
+        name_hi VARCHAR(255) NOT NULL,
+        role_en VARCHAR(255) NOT NULL,
+        role_hi VARCHAR(255) NOT NULL,
+        designation_en VARCHAR(255) NULL,
+        designation_hi VARCHAR(255) NULL,
+        mobile VARCHAR(20) NULL,
+        sort_order INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('[Migration] Ensured grc_staff_members table exists.');
+  } catch (err) {
+    console.error('[Migration] grc_staff_members table creation failed:', err.message);
   }
 
   // 2. Auto-seed core roles if table is empty

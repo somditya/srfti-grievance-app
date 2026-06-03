@@ -10,9 +10,10 @@ function AdminDashboard({
   systemSettings,
   setSystemSettings,
 }) {
-  const [activeSubTab, setActiveSubTab] = useState("settings"); // settings, users, sgrc-members, analytics
+  const [activeSubTab, setActiveSubTab] = useState("settings"); // settings, users, sgrc-members, grc-staff, analytics
   const [officers, setOfficers] = useState([]);
   const [sgrcMembers, setSgrcMembers] = useState([]); // For managing landing page committee members
+  const [grcStaffMembers, setGrcStaffMembers] = useState([]); // For managing GRC Staff committee members
   const [reports, setReports] = useState(null);
 
   // SLA forms
@@ -49,6 +50,16 @@ function AdminDashboard({
   const [editingSgrcIndex, setEditingSgrcIndex] = useState(null);
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
+
+  // GRC Staff Member form state
+  const [grcStaffMemberNameEn, setGrcStaffMemberNameEn] = useState("");
+  const [grcStaffMemberNameHi, setGrcStaffMemberNameHi] = useState("");
+  const [grcStaffMemberRoleEn, setGrcStaffMemberRoleEn] = useState("");
+  const [grcStaffMemberRoleHi, setGrcStaffMemberRoleHi] = useState("");
+  const [grcStaffMemberDesignationEn, setGrcStaffMemberDesignationEn] = useState("");
+  const [grcStaffMemberDesignationHi, setGrcStaffMemberDesignationHi] = useState("");
+  const [grcStaffMemberMobile, setGrcStaffMemberMobile] = useState("");
+  const [editingGrcStaffIndex, setEditingGrcStaffIndex] = useState(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -167,6 +178,22 @@ function AdminDashboard({
       }
     };
     loadSgrcMembers();
+  }, []);
+
+  // Load GRC Staff members from database via API
+  useEffect(() => {
+    const loadGrcStaffMembers = async () => {
+      try {
+        const response = await fetch(`${API_URL}/grc-staff-members`);
+        if (response.ok) {
+          const data = await response.json();
+          setGrcStaffMembers(data || []);
+        }
+      } catch (err) {
+        console.warn("[API] Failed to load GRC staff members:", err);
+      }
+    };
+    loadGrcStaffMembers();
   }, []);
 
   // Register SGRC member (for landing page)
@@ -498,6 +525,24 @@ function AdminDashboard({
                 }}
               >
                 SGRC Committee Members
+              </button>
+            </li>
+            <li>
+              <button
+                className={`btn ${activeSubTab === "grc-staff" ? "btn-primary" : "btn-secondary"}`}
+                style={{
+                  width: "100%",
+                  justifyContent: "flex-start",
+                  border: "none",
+                  padding: "0.75rem 1rem",
+                }}
+                onClick={() => {
+                  setActiveSubTab("grc-staff");
+                  setError(null);
+                  setSuccess(null);
+                }}
+              >
+                GRC Staff Committee Members
               </button>
             </li>
             <li>
@@ -1100,6 +1145,324 @@ function AdminDashboard({
                               </button>
                               <button
                                 onClick={() => handleDeleteSgrcMember(index)}
+                                className="btn btn-danger"
+                                style={{ padding: "0.3rem 0.6rem", fontSize: "0.85rem" }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {/* Subpanel 4: GRC Staff Committee Members */}
+          {activeSubTab === "grc-staff" && (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "1.5rem",
+              }}
+            >
+              {/* Form to manage GRC Staff members */}
+              <section className="card" aria-labelledby="grc-staff-members-heading">
+                <h3
+                  id="grc-staff-members-heading"
+                  className="card-header"
+                  style={{ fontSize: "1.25rem" }}
+                >
+                  Manage GRC Staff Committee Members
+                </h3>
+
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!grcStaffMemberNameEn || !grcStaffMemberNameHi || !grcStaffMemberRoleEn || !grcStaffMemberRoleHi) {
+                    return;
+                  }
+
+                  const newMember = {
+                    name_en: grcStaffMemberNameEn,
+                    name_hi: grcStaffMemberNameHi,
+                    role_en: grcStaffMemberRoleEn,
+                    role_hi: grcStaffMemberRoleHi,
+                    designation_en: grcStaffMemberDesignationEn,
+                    designation_hi: grcStaffMemberDesignationHi,
+                    mobile: grcStaffMemberMobile,
+                  };
+
+                  let updatedMembers;
+                  if (editingGrcStaffIndex !== null) {
+                    updatedMembers = [...grcStaffMembers];
+                    updatedMembers[editingGrcStaffIndex] = newMember;
+                  } else {
+                    updatedMembers = [...grcStaffMembers, newMember];
+                  }
+
+                  setGrcStaffMembers(updatedMembers);
+                  setGrcStaffMemberNameEn("");
+                  setGrcStaffMemberNameHi("");
+                  setGrcStaffMemberRoleEn("");
+                  setGrcStaffMemberRoleHi("");
+                  setGrcStaffMemberDesignationEn("");
+                  setGrcStaffMemberDesignationHi("");
+                  setGrcStaffMemberMobile("");
+                  setEditingGrcStaffIndex(null);
+
+                  // Save to database via API
+                  fetch(`${API_URL}/grc-staff-members`, {
+                    method: "POST",
+                    headers: {
+                      Authorization: `Bearer ${authToken}`,
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ members: updatedMembers }),
+                  }).then(res => {
+                    if (res.ok) {
+                      setSuccess("GRC Staff committee members saved successfully.");
+                    }
+                  }).catch(err => {
+                    console.error("[API] Could not save GRC staff members:", err);
+                    setError("Failed to save members: " + (err.message || "Unknown error"));
+                  });
+                }}>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                      gap: "1rem",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="grc-staff-name-en">
+                        Name (English) *
+                      </label>
+                      <input
+                        type="text"
+                        id="grc-staff-name-en"
+                        className="form-control"
+                        value={grcStaffMemberNameEn}
+                        onChange={(e) => setGrcStaffMemberNameEn(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="grc-staff-name-hi">
+                        Name (Hindi) *
+                      </label>
+                      <input
+                        type="text"
+                        id="grc-staff-name-hi"
+                        className="form-control"
+                        value={grcStaffMemberNameHi}
+                        onChange={(e) => setGrcStaffMemberNameHi(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="grc-staff-role-en">
+                        Role (English) *
+                      </label>
+                      <input
+                        type="text"
+                        id="grc-staff-role-en"
+                        className="form-control"
+                        value={grcStaffMemberRoleEn}
+                        onChange={(e) => setGrcStaffMemberRoleEn(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="grc-staff-role-hi">
+                        Role (Hindi) *
+                      </label>
+                      <input
+                        type="text"
+                        id="grc-staff-role-hi"
+                        className="form-control"
+                        value={grcStaffMemberRoleHi}
+                        onChange={(e) => setGrcStaffMemberRoleHi(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="grc-staff-designation-en">
+                        Designation (English)
+                      </label>
+                      <input
+                        type="text"
+                        id="grc-staff-designation-en"
+                        className="form-control"
+                        value={grcStaffMemberDesignationEn}
+                        onChange={(e) => setGrcStaffMemberDesignationEn(e.target.value)}
+                        placeholder="e.g., Senior Administrative Officer"
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="grc-staff-designation-hi">
+                        Designation (Hindi)
+                      </label>
+                      <input
+                        type="text"
+                        id="grc-staff-designation-hi"
+                        className="form-control"
+                        value={grcStaffMemberDesignationHi}
+                        onChange={(e) => setGrcStaffMemberDesignationHi(e.target.value)}
+                        placeholder="उदाहरण के लिए, सीनियर प्रशासनिक अधिकारी"
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="grc-staff-mobile">
+                        Mobile No.
+                      </label>
+                      <input
+                        type="tel"
+                        id="grc-staff-mobile"
+                        className="form-control"
+                        value={grcStaffMemberMobile}
+                        onChange={(e) => setGrcStaffMemberMobile(e.target.value)}
+                        placeholder="+91 XXXXXXXXXX"
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "0.75rem", marginTop: "1rem" }}>
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      disabled={loading}
+                    >
+                      {editingGrcStaffIndex !== null ? 'Update Member' : 'Add Member'}
+                    </button>
+                    {editingGrcStaffIndex !== null && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          setGrcStaffMemberNameEn("");
+                          setGrcStaffMemberNameHi("");
+                          setGrcStaffMemberRoleEn("");
+                          setGrcStaffMemberRoleHi("");
+                          setGrcStaffMemberDesignationEn("");
+                          setGrcStaffMemberDesignationHi("");
+                          setGrcStaffMemberMobile("");
+                          setEditingGrcStaffIndex(null);
+                        }}
+                      >
+                        Cancel Edit
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </section>
+
+              {/* Registered GRC Staff members table */}
+              <section className="card" aria-labelledby="grc-staff-members-list-heading">
+                <h3
+                  id="grc-staff-members-list-heading"
+                  className="card-header"
+                  style={{ fontSize: "1.15rem" }}
+                >
+                  Committee Members List
+                </h3>
+
+                <div style={{ overflowX: "auto" }}>
+                  <table
+                    style={{
+                      width: "100%",
+                      borderCollapse: "collapse",
+                      textAlign: "left",
+                    }}
+                    role="table"
+                  >
+                    <thead>
+                      <tr
+                        style={{
+                          borderBottom: "2px solid var(--border-color)",
+                          fontWeight: 700,
+                        }}
+                      >
+                        <th style={{ padding: "0.75rem" }}>Name (English)</th>
+                        <th style={{ padding: "0.75rem" }}>Name (Hindi)</th>
+                        <th style={{ padding: "0.75rem" }}>Role (English)</th>
+                        <th style={{ padding: "0.75rem" }}>Role (Hindi)</th>
+                        <th style={{ padding: "0.75rem" }}>Designation</th>
+                        <th style={{ padding: "0.75rem" }}>Mobile</th>
+                        <th style={{ padding: "0.75rem" }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {grcStaffMembers.map((member, index) => (
+                        <tr
+                          key={index}
+                          style={{
+                            borderBottom: "1px solid var(--border-color)",
+                            fontSize: "0.9rem",
+                          }}
+                        >
+                          <td style={{ padding: "0.75rem", fontWeight: 600 }}>
+                            {member.name_en}
+                          </td>
+                          <td style={{ padding: "0.75rem" }}>
+                            {member.name_hi}
+                          </td>
+                          <td style={{ padding: "0.75rem" }}>
+                            {member.role_en}
+                          </td>
+                          <td style={{ padding: "0.75rem" }}>
+                            {member.role_hi}
+                          </td>
+                          <td style={{ padding: "0.75rem" }}>
+                            {member.designation_en || "-"}
+                          </td>
+                          <td style={{ padding: "0.75rem" }}>
+                            {member.mobile || "N/A"}
+                          </td>
+                          <td style={{ padding: "0.75rem" }}>
+                            <div style={{ display: "flex", gap: "0.5rem" }}>
+                              <button
+                                onClick={() => {
+                                  setGrcStaffMemberNameEn(member.name_en);
+                                  setGrcStaffMemberNameHi(member.name_hi);
+                                  setGrcStaffMemberRoleEn(member.role_en);
+                                  setGrcStaffMemberRoleHi(member.role_hi);
+                                  setGrcStaffMemberDesignationEn(member.designation_en || "");
+                                  setGrcStaffMemberDesignationHi(member.designation_hi || "");
+                                  setGrcStaffMemberMobile(member.mobile || "");
+                                  setEditingGrcStaffIndex(index);
+                                }}
+                                className="btn btn-secondary"
+                                style={{ padding: "0.3rem 0.6rem", fontSize: "0.85rem" }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  if (window.confirm("Remove this member from GRC Staff committee?")) {
+                                    const updatedMembers = grcStaffMembers.filter((_, i) => i !== index);
+                                    setGrcStaffMembers(updatedMembers);
+                                    fetch(`${API_URL}/grc-staff-members`, {
+                                      method: "POST",
+                                      headers: {
+                                        Authorization: `Bearer ${authToken}`,
+                                        "Content-Type": "application/json",
+                                      },
+                                      body: JSON.stringify({ members: updatedMembers }),
+                                    }).then(() => setSuccess("Member removed successfully."));
+                                  }
+                                }}
                                 className="btn btn-danger"
                                 style={{ padding: "0.3rem 0.6rem", fontSize: "0.85rem" }}
                               >

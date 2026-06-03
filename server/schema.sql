@@ -89,10 +89,26 @@ CREATE TABLE sgrc_members (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 7. GRC Staff Members Table (for landing page "Constitution of the GRC for Staff" panel)
+CREATE TABLE grc_staff_members (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name_en VARCHAR(255) NOT NULL,
+  name_hi VARCHAR(255) NOT NULL,
+  role_en VARCHAR(255) NOT NULL,
+  role_hi VARCHAR(255) NOT NULL,
+  designation_en VARCHAR(255) NULL,
+  designation_hi VARCHAR(255) NULL,
+  mobile VARCHAR(20) NULL,
+  sort_order INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Migration script for existing databases (run after CREATE TABLE if needed)
 -- ALTER TABLE sgrc_members ADD COLUMN designation_en VARCHAR(255) NULL;
 -- ALTER TABLE sgrc_members ADD COLUMN designation_hi VARCHAR(255) NULL;
 -- ALTER TABLE sgrc_members ADD COLUMN mobile VARCHAR(20) NULL;
+-- ALTER TABLE grc_staff_members ADD COLUMN designation_en VARCHAR(255) NULL;
+-- ALTER TABLE grc_staff_members ADD COLUMN designation_hi VARCHAR(255) NULL;
 
 -- --- SEED DATA ---
 
@@ -110,6 +126,14 @@ INSERT INTO sgrc_members (name_en, name_hi, role_en, role_hi, designation_en, de
 ('Prof. Sandip Mondal', 'प्रो. संदीप मंडल', 'Member', 'सदस्य', 'Professor', 'प्रोफेसर', '+91 98765 43213', 4),
 ('Prof. Diptendu Chatterjee', 'प्रो. दीप्तेंदु चटर्जी', 'Member', 'सदस्य', 'Professor', 'प्रोफेसर', '+91 98765 43214', 5),
 ('Student Nominee', 'छात्र नामिती', 'Invitee Member', 'आमंत्रित सदस्य', 'Student Representative', 'छात्र प्रतिनिधि', '+91 98765 43215', 6);
+
+-- Seed Default GRC Staff Committee Members
+INSERT INTO grc_staff_members (name_en, name_hi, role_en, role_hi, designation_en, designation_hi, mobile, sort_order) VALUES
+('Sri Amit Kumar', 'श्री अमित कुमार', 'Chairperson', 'अध्यक्ष', 'Senior Administrative Officer', 'सीनियर प्रशासनिक अधिकारी', '+91 98765 43220', 1),
+('Smt. Priya Sharma', 'श्रीमति प्रिया शर्मा', 'Member', 'सदस्य', 'HR Manager', 'एचआर मैनेजर', '+91 98765 43221', 2),
+('Shri Rajesh Singh', 'श्री राजेश सिंह', 'Member', 'सदस्य', 'Finance Officer', 'वित्त अधिकारी', '+91 98765 43222', 3),
+('Smt. Sunita Devi', 'श्रीमति सुनीता देवी', 'Member', 'सदस्य', 'Security In-charge', 'सुरक्षा अधिकारी', '+91 98765 43223', 4),
+('Shri Vikram Mehta', 'श्री विक्रम मेहता', 'Member', 'सदस्य', 'IT Coordinator', 'आईटी समन्वयक', '+91 98765 43224', 5);
 
 -- Seed Sample Student User (for testing)
 INSERT INTO users (name, email, password_hash, role, complainant_type, phone, department, batch, gender, category, registration_no) VALUES

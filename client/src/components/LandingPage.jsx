@@ -3,12 +3,12 @@
 
 import React, { useState } from 'react';
 
-function LandingPage({ t, setCurrentView, systemSettings, appellateConfigs, language, members = [] }) {
+function LandingPage({ t, setCurrentView, systemSettings, appellateConfigs, language, members = [], grcStaffMembers = [] }) {
   const [activeFaq, setActiveFaq] = useState(null);
 
   // ─── SGRC Constitution ────────────────────────────────────────────────────────
   // Default members list (used when no admin-provided members)
-  const defaultMembers = [
+  const defaultSgrcMembers = [
     { name_en: 'Prof. Sudeshna Lahiri',        name_hi: 'प्रो. सुदेशना लाहिड़ी',          role_en: 'Chairperson',    role_hi: 'अध्यक्ष', designation_en: 'Professor', designation_hi: 'प्रोफेसर', mobile: '+91 98765 43210' },
     { name_en: 'Prof. Sanjit Dey',             name_hi: 'प्रो. संजीत डे',                role_en: 'Member',         role_hi: 'सदस्य', designation_en: 'Professor', designation_hi: 'प्रोफेसर', mobile: '+91 98765 43211' },
     { name_en: 'Prof. Siddhartha Sankar Saha', name_hi: 'प्रो. सिद्धार्थ शंकर साहा',    role_en: 'Member',         role_hi: 'सदस्य', designation_en: 'Professor', designation_hi: 'प्रोफेसर', mobile: '+91 98765 43212' },
@@ -17,15 +17,32 @@ function LandingPage({ t, setCurrentView, systemSettings, appellateConfigs, lang
     { name_en: 'Student Nominee',              name_hi: 'छात्र नामिती',                  role_en: 'Invitee Member', role_hi: 'आमंत्रित सदस्य', designation_en: 'Student Representative', designation_hi: 'छात्र प्रतिनिधि', mobile: '+91 98765 43215' },
   ];
 
+  // Default GRC Staff members list
+  const defaultGrcStaffMembers = [
+    { name_en: 'Sri Amit Kumar',              name_hi: 'श्री अमित कुमार',              role_en: 'Chairperson',      role_hi: 'अध्यक्ष', designation_en: 'Senior Administrative Officer', designation_hi: 'सीनियर प्रशासनिक अधिकारी', mobile: '+91 98765 43220' },
+    { name_en: 'Smt. Priya Sharma',           name_hi: 'श्रीमति प्रिया शर्मा',           role_en: 'Member',           role_hi: 'सदस्य', designation_en: 'HR Manager', designation_hi: 'एचआर मैनेजर', mobile: '+91 98765 43221' },
+    { name_en: 'Shri Rajesh Singh',           name_hi: 'श्री राजेश सिंह',               role_en: 'Member',           role_hi: 'सदस्य', designation_en: 'Finance Officer', designation_hi: 'वित्त अधिकारी', mobile: '+91 98765 43222' },
+    { name_en: 'Smt. Sunita Devi',            name_hi: 'श्रीमति सुनीता देवी',            role_en: 'Member',           role_hi: 'सदस्य', designation_en: 'Security In-charge', designation_hi: 'सुरक्षा अधिकारी', mobile: '+91 98765 43223' },
+    { name_en: 'Shri Vikram Mehta',           name_hi: 'श्री विक्रम मेहता',              role_en: 'Member',           role_hi: 'सदस्य', designation_en: 'IT Coordinator', designation_hi: 'आईटी समन्वयक', mobile: '+91 98765 43224' },
+  ];
+
   // Merge backend members with default values for missing fields
   // Use defaultMembers if backend returns empty array or null
-  const hasValidMembers = Array.isArray(members) && members.length > 0;
-  const sgrcMembers = hasValidMembers ? members.map(member => ({
+  const hasValidSgrcMembers = Array.isArray(members) && members.length > 0;
+  const sgrcMembers = hasValidSgrcMembers ? members.map(member => ({
     ...member,
     designation_en: member.designation_en || '',
     designation_hi: member.designation_hi || '',
     mobile: member.mobile || '',
-  })) : defaultMembers;
+  })) : defaultSgrcMembers;
+
+  const hasValidGrcStaffMembers = Array.isArray(grcStaffMembers) && grcStaffMembers.length > 0;
+  const grcStaffMembersList = hasValidGrcStaffMembers ? grcStaffMembers.map(member => ({
+    ...member,
+    designation_en: member.designation_en || '',
+    designation_hi: member.designation_hi || '',
+    mobile: member.mobile || '',
+  })) : defaultGrcStaffMembers;
 
   // Dynamic values based on settings loaded from API or local defaults
   const studentSla = systemSettings.student_resolution_days || 22;
@@ -150,7 +167,7 @@ function LandingPage({ t, setCurrentView, systemSettings, appellateConfigs, lang
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
           ),
-          label_en: 'Not Satisfied — Escalate to Ombudsperson',
+          label_en: 'Not Satisfied — Escalate to Ombudsperson/Appellate authority',
           label_hi: 'असंतुष्ट — लोकपाल को अग्रेषित करें',
           accent: '#dc2626',
           bg: '#fef2f2',
@@ -333,10 +350,8 @@ function LandingPage({ t, setCurrentView, systemSettings, appellateConfigs, lang
        * </section>
        */}
 
-      {/* ── Grievance Redressal Procedure Flow + SGRC Committee (side-by-side) ── */}
+      {/* ── Grievance Redressal Procedure Flow (single column) ────────────────── */}
       <section aria-labelledby="procedure-flow-title" style={{ marginBottom: '3.5rem' }}>
-
-        {/* Section heading — full width above both columns */}
         <h3
           id="procedure-flow-title"
           style={{ fontSize: '1.6rem', textAlign: 'center', marginBottom: '0.5rem' }}
@@ -349,117 +364,120 @@ function LandingPage({ t, setCurrentView, systemSettings, appellateConfigs, lang
             : 'प्रावधान 3(एफ) के अनुसार — यूजीसी राजपत्र अधिसूचना, 11 अप्रैल 2023'}
         </p>
 
-        {/* Two-column wrapper */}
+        <div style={flowStyles.wrapper}>
+          {/* Step 1 — Submit */}
+          <div style={{ ...flowStyles.stepBox, borderLeftColor: 'var(--primary)', borderLeftWidth: '4px' }}>
+            <div style={flowStyles.iconCircle}>{procedureSteps[0].icon}</div>
+            <span style={flowStyles.stepLabel}>
+              {language === 'en' ? procedureSteps[0].label_en : procedureSteps[0].label_hi}
+            </span>
+          </div>
+
+          <Arrow />
+
+          {/* Step 2 — SGRC */}
+          <div style={{ ...flowStyles.stepBox, borderLeftColor: 'var(--primary)', borderLeftWidth: '4px' }}>
+            <div style={flowStyles.iconCircle}>{procedureSteps[1].icon}</div>
+            <span style={flowStyles.stepLabel}>
+              {language === 'en' ? procedureSteps[1].label_en : procedureSteps[1].label_hi}
+            </span>
+          </div>
+
+          {/* Fork: Y-split into two parallel paths */}
+          <YSplit />
+
+          {/* Branch row: Departments | Hearings */}
+          <div style={flowStyles.branchRow}>
+            <div style={flowStyles.branchBox()}>
+              <div style={flowStyles.branchIcon()}>{procedureSteps[2].branch.left.icon}</div>
+              <span style={flowStyles.branchLabel()}>
+                {language === 'en'
+                  ? procedureSteps[2].branch.left.label_en
+                  : procedureSteps[2].branch.left.label_hi}
+              </span>
+            </div>
+            <div style={flowStyles.branchBox()}>
+              <div style={flowStyles.branchIcon()}>{procedureSteps[2].branch.right.icon}</div>
+              <span style={flowStyles.branchLabel()}>
+                {language === 'en'
+                  ? procedureSteps[2].branch.right.label_en
+                  : procedureSteps[2].branch.right.label_hi}
+              </span>
+            </div>
+          </div>
+
+          {/* Merge back */}
+          <YMerge />
+
+          {/* Step 4 — Status Update */}
+          <div style={{ ...flowStyles.stepBox, borderLeftColor: 'var(--primary)', borderLeftWidth: '4px' }}>
+            <div style={flowStyles.iconCircle}>{procedureSteps[3].icon}</div>
+            <span style={flowStyles.stepLabel}>
+              {language === 'en' ? procedureSteps[3].label_en : procedureSteps[3].label_hi}
+            </span>
+          </div>
+
+          {/* Fork: Y-split into Satisfied | Not Satisfied */}
+          <YSplit />
+
+          {/* Outcome branch row */}
+          <div style={flowStyles.branchRow}>
+            {/* Satisfied */}
+            <div style={flowStyles.branchBox(
+              procedureSteps[4].branch.left.accent,
+              procedureSteps[4].branch.left.bg,
+              procedureSteps[4].branch.left.border
+            )}>
+              <div style={flowStyles.branchIcon(procedureSteps[4].branch.left.accent)}>
+                {procedureSteps[4].branch.left.icon}
+              </div>
+              <span style={flowStyles.branchLabel(procedureSteps[4].branch.left.accent)}>
+                {language === 'en'
+                  ? procedureSteps[4].branch.left.label_en
+                  : procedureSteps[4].branch.left.label_hi}
+              </span>
+            </div>
+
+            {/* Not Satisfied */}
+            <div style={flowStyles.branchBox(
+              procedureSteps[4].branch.right.accent,
+              procedureSteps[4].branch.right.bg,
+              procedureSteps[4].branch.right.border
+            )}>
+              <div style={flowStyles.branchIcon(procedureSteps[4].branch.right.accent)}>
+                {procedureSteps[4].branch.right.icon}
+              </div>
+              <span style={flowStyles.branchLabel(procedureSteps[4].branch.right.accent)}>
+                {language === 'en'
+                  ? procedureSteps[4].branch.right.label_en
+                  : procedureSteps[4].branch.right.label_hi}
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+      {/* ── End Grievance Redressal Procedure Flow ─────────────────────────────── */}
+
+      {/* ── Constitution panels: SGRC & GRC for Staff side-by-side ────────────── */}
+      <section aria-labelledby="constitution-panels-title" style={{ marginBottom: '3.5rem' }}>
+        <h3
+          id="constitution-panels-title"
+          style={{ fontSize: '1.6rem', textAlign: 'center', marginBottom: '1.5rem' }}
+        >
+          {language === 'en' ? 'Constitution of Committees' : 'कमेटी का गठन'}
+        </h3>
+
         <div style={{
           display: 'flex',
           gap: '1.75rem',
-          alignItems: 'flex-start',
+          flexWrap: 'wrap',
         }}>
-
-          {/* ── LEFT: Procedure flow ─────────────────────────────────────────── */}
-          <div style={{ flex: '1 1 0', minWidth: 0, ...flowStyles.wrapper }}>
-
-            {/* Step 1 — Submit */}
-            <div style={{ ...flowStyles.stepBox, borderLeftColor: 'var(--primary)', borderLeftWidth: '4px' }}>
-              <div style={flowStyles.iconCircle}>{procedureSteps[0].icon}</div>
-              <span style={flowStyles.stepLabel}>
-                {language === 'en' ? procedureSteps[0].label_en : procedureSteps[0].label_hi}
-              </span>
-            </div>
-
-            <Arrow />
-
-            {/* Step 2 — SGRC */}
-            <div style={{ ...flowStyles.stepBox, borderLeftColor: 'var(--primary)', borderLeftWidth: '4px' }}>
-              <div style={flowStyles.iconCircle}>{procedureSteps[1].icon}</div>
-              <span style={flowStyles.stepLabel}>
-                {language === 'en' ? procedureSteps[1].label_en : procedureSteps[1].label_hi}
-              </span>
-            </div>
-
-            {/* Fork: Y-split into two parallel paths */}
-            <YSplit />
-
-            {/* Branch row: Departments | Hearings */}
-            <div style={flowStyles.branchRow}>
-              <div style={flowStyles.branchBox()}>
-                <div style={flowStyles.branchIcon()}>{procedureSteps[2].branch.left.icon}</div>
-                <span style={flowStyles.branchLabel()}>
-                  {language === 'en'
-                    ? procedureSteps[2].branch.left.label_en
-                    : procedureSteps[2].branch.left.label_hi}
-                </span>
-              </div>
-              <div style={flowStyles.branchBox()}>
-                <div style={flowStyles.branchIcon()}>{procedureSteps[2].branch.right.icon}</div>
-                <span style={flowStyles.branchLabel()}>
-                  {language === 'en'
-                    ? procedureSteps[2].branch.right.label_en
-                    : procedureSteps[2].branch.right.label_hi}
-                </span>
-              </div>
-            </div>
-
-            {/* Merge back */}
-            <YMerge />
-
-            {/* Step 4 — Status Update */}
-            <div style={{ ...flowStyles.stepBox, borderLeftColor: 'var(--primary)', borderLeftWidth: '4px' }}>
-              <div style={flowStyles.iconCircle}>{procedureSteps[3].icon}</div>
-              <span style={flowStyles.stepLabel}>
-                {language === 'en' ? procedureSteps[3].label_en : procedureSteps[3].label_hi}
-              </span>
-            </div>
-
-            {/* Fork: Y-split into Satisfied | Not Satisfied */}
-            <YSplit />
-
-            {/* Outcome branch row */}
-            <div style={flowStyles.branchRow}>
-              {/* Satisfied */}
-              <div style={flowStyles.branchBox(
-                procedureSteps[4].branch.left.accent,
-                procedureSteps[4].branch.left.bg,
-                procedureSteps[4].branch.left.border
-              )}>
-                <div style={flowStyles.branchIcon(procedureSteps[4].branch.left.accent)}>
-                  {procedureSteps[4].branch.left.icon}
-                </div>
-                <span style={flowStyles.branchLabel(procedureSteps[4].branch.left.accent)}>
-                  {language === 'en'
-                    ? procedureSteps[4].branch.left.label_en
-                    : procedureSteps[4].branch.left.label_hi}
-                </span>
-              </div>
-
-              {/* Not Satisfied */}
-              <div style={flowStyles.branchBox(
-                procedureSteps[4].branch.right.accent,
-                procedureSteps[4].branch.right.bg,
-                procedureSteps[4].branch.right.border
-              )}>
-                <div style={flowStyles.branchIcon(procedureSteps[4].branch.right.accent)}>
-                  {procedureSteps[4].branch.right.icon}
-                </div>
-                <span style={flowStyles.branchLabel(procedureSteps[4].branch.right.accent)}>
-                  {language === 'en'
-                    ? procedureSteps[4].branch.right.label_en
-                    : procedureSteps[4].branch.right.label_hi}
-                </span>
-              </div>
-            </div>
-
-          </div>
-          {/* ── END LEFT column ──────────────────────────────────────────────── */}
-
-          {/* ── RIGHT: SGRC Constitution card (sticky) ───────────────────────── */}
+          {/* SGRC Constitution */}
           <aside
             aria-labelledby="sgrc-panel-heading"
             style={{
-              flex: '0 0 300px',
-              position: 'sticky',
-              top: '1.5rem',
-              alignSelf: 'flex-start',
+              flex: '1 1 320px',
+              minWidth: 0,
               background: 'var(--bg-card)',
               border: '1.5px solid var(--border-color)',
               borderRadius: 'var(--radius-md)',
@@ -474,9 +492,7 @@ function LandingPage({ t, setCurrentView, systemSettings, appellateConfigs, lang
                 <circle cx="9" cy="7" r="4" />
                 <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
               </svg>
-              <h4
-                id="sgrc-panel-heading"
-              >
+              <h4 id="sgrc-panel-heading">
                 {language === 'en' ? 'Constitution of the SGRC' : 'एसजीआरसी का गठन'}
               </h4>
             </div>
@@ -495,7 +511,6 @@ function LandingPage({ t, setCurrentView, systemSettings, appellateConfigs, lang
                     background: m.role_en === 'Chairperson' ? 'var(--primary-light, #e8f5e9)' : 'transparent',
                   }}
                 >
-                  {/* Name & Role row */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                       <span style={{ fontWeight: m.role_en === 'Chairperson' ? 700 : 500, fontSize: '0.88rem', color: 'var(--text-main)', lineHeight: 1.3 }}>
@@ -526,11 +541,79 @@ function LandingPage({ t, setCurrentView, systemSettings, appellateConfigs, lang
               ))}
             </div>
           </aside>
-          {/* ── END RIGHT column ─────────────────────────────────────────────── */}
 
-        </div>{/* end two-column wrapper */}
+          {/* GRC Staff Constitution */}
+          <aside
+            aria-labelledby="grc-staff-panel-heading"
+            style={{
+              flex: '1 1 320px',
+              minWidth: 0,
+              background: 'var(--bg-card)',
+              border: '1.5px solid var(--border-color)',
+              borderRadius: 'var(--radius-md)',
+              overflow: 'hidden',
+              boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+            }}
+          >
+            {/* Card header */}
+            <div className="sgrc-header">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+              <h4 id="grc-staff-panel-heading">
+                {language === 'en' ? 'Constitution of the GRC for Staff' : 'स्टाफ के लिए जीआरसी का गठन'}
+              </h4>
+            </div>
+
+            {/* Member rows */}
+            <div style={{ padding: '0.25rem 0' }}>
+              {grcStaffMembersList.map((m, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    padding: '0.75rem 1.1rem',
+                    gap: '0.25rem',
+                    borderBottom: i < grcStaffMembersList.length - 1 ? '1px solid var(--border-color)' : 'none',
+                    background: m.role_en === 'Chairperson' ? 'var(--primary-light, #e8f5e9)' : 'transparent',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontWeight: m.role_en === 'Chairperson' ? 700 : 500, fontSize: '0.88rem', color: 'var(--text-main)', lineHeight: 1.3 }}>
+                        {language === 'en' ? m.name_en : m.name_hi}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                        {m.designation_en ? (language === 'en' ? m.designation_en : m.designation_hi) : '-'}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
+                        {m.mobile || '-'}
+                      </span>
+                    </div>
+                    <span style={{
+                      flexShrink: 0,
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      color: m.role_en === 'Chairperson' ? 'var(--primary)' : 'var(--text-muted)',
+                      background: m.role_en === 'Chairperson' ? 'var(--primary-light, #e8f5e9)' : 'var(--bg-app)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '999px',
+                      padding: '0.15rem 0.6rem',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {language === 'en' ? m.role_en : m.role_hi}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </aside>
+        </div>
       </section>
-      {/* ── End Grievance Redressal Procedure Flow ─────────────────────────────── */}
+      {/* ── End Constitution panels ────────────────────────────────────────────── */}
 
       {/* FAQs Section */}
       <section style={{ marginTop: '3.5rem' }} aria-labelledby="faq-title">
